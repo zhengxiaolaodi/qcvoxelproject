@@ -65,7 +65,7 @@ def train(args, io):
     for epoch in range(args.epochs):
         print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
         scheduler.step()
-        currect_lr = scheduler.get_lr()
+        currect_lr = scheduler.get_last_lr()
         ####################
         # Train
         ####################
@@ -139,7 +139,28 @@ def mytest(args, io):
     device = torch.device("cuda" if args.cuda else "cpu")
 
     #Try to load models
-    model = PointNet(args, 6).to(device)
+
+    #model = DGCNN(args, 6).to(device)
+
+    #Try to load models
+    if args.model == 'pointnet':
+        model = PointNet(args, 6).to(device)
+    elif args.model == 'dgcnn':
+        model = DGCNN(args, 6).to(device)                                   ###################################   change the cls number
+    else:
+        raise Exception("Not implemented")
+    print(str(model))
+
+
+
+
+
+
+
+
+
+
+
     model = nn.DataParallel(model)
     model_path = '/data4/zb/model/model_nyu2_4096/model_6cls_pointnet.t7'
     model.load_state_dict(torch.load(model_path))
@@ -190,7 +211,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Point Cloud Recognition')
     parser.add_argument('--exp_name', type=str, default='exp', metavar='N',
                         help='Name of the experiment')
-    parser.add_argument('--model', type=str, default='dgcnn', metavar='N',                 ############################################
+    parser.add_argument('--model', type=str, default='pointnet', metavar='N',                 ############################################
                         choices=['pointnet', 'dgcnn'],
                         help='Model to use, [pointnet, dgcnn]')
     parser.add_argument('--dataset', type=str, default='sun_4096', metavar='N'
@@ -211,7 +232,7 @@ if __name__ == "__main__":
                         help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--eval', type=bool,  default=True,                          ##################################
+    parser.add_argument('--eval', type=bool,  default=True,                          ##################################     train(f) or test(t)
                         help='evaluate the model')
     parser.add_argument('--num_points', type=int, default=4096,
                         help='num of points to use')
@@ -239,7 +260,9 @@ if __name__ == "__main__":
     else:
         io.cprint('Using CPU')
 
-    if not args.eval:
-        train(args, io)
-    else:
-        mytest(args, io)
+    # if not args.eval:
+    #     train(args, io)
+    # else:
+    #     mytest(args, io)
+    train(args, io)
+    mytest(args, io)

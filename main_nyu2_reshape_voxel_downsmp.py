@@ -45,12 +45,12 @@ def train(args, io):
     if args.model == 'pointnet':
         model = DGCNN_voxel_reshape(args).to(device)
     elif args.model == 'dgcnn':
-        model = DGCNN_voxel_reshape(args, output_channels=18).to(device)
+        model = DGCNN_voxel_reshape(args, output_channels=22).to(device)
     else:
         raise Exception("Not implemented")
     print(str(model))
 
-    model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3, 4, 5])#设置调用的GPU
+    model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3])#设置调用的GPU
     print("Let's use", torch.cuda.device_count(), "GPUs!")
 
 
@@ -77,10 +77,11 @@ def train(args, io):
     for epoch in range(args.epochs):
         print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
         scheduler_steplr.step()
-        currect_lr = scheduler_steplr.get_lr()
+        currect_lr = scheduler_steplr.get_last_lr()
         ####################
         # Train
-        ####################
+        ####################pycharm
+
         train_loss = 0.0
         count = 0.0
         model.train()   #对于一些含有BatchNorm，Dropout等层的模型，在训练时使用的forward和验证时使用的forward在计算上不太一样.需要设置
@@ -129,7 +130,7 @@ def a_test(args, io):
     device = torch.device("cuda" if args.cuda else "cpu")
 
     #Try to load models
-    model = DGCNN_voxel_reshape(args, output_channels=18).to(device)
+    model = DGCNN_voxel_reshape(args, output_channels=22).to(device)
     model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3])
 
     for iii in range(172):   #### test the last 50 models
@@ -205,7 +206,7 @@ if __name__ == "__main__":
                         help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--eval', type=bool,  default= True,        #### train(f) or test(t)
+    parser.add_argument('--eval', type=bool,  default= False,        #### train(f) or test(t)
                         help='evaluate the model')
     parser.add_argument('--point_num', type=int, default=220,
                         help='num of points to use')

@@ -53,7 +53,7 @@ def get_graph_feature(x, k=20, idx=None):
     feature = feature.view(batch_size, num_points, k, num_dims) 
     x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)  ## fxm: 将每个点重复k次，x的维度是[b,n,k,d]
     #                                                                           ,和feature一样
-    feature = c((feature-x, x), dim=3).permute(0, 3, 1, 2).contiguous()  # b之后按xyz...分(这里维度乘２因为拼接了原值与差值)，再按n分，最后是k
+    feature = torch.cat((feature-x, x), dim=3).permute(0, 3, 1, 2).contiguous()  # b之后按xyz...分(这里维度乘２因为拼接了原值与差值)，再按n分，最后是k
   
     return feature
 

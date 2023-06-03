@@ -122,7 +122,7 @@ def train(args, io):
 
 
 
-def test(args, io):
+def mytest(args, io):
     test_loader = DataLoader(nyu2_18cls_voxel_dsp220('test'), num_workers=8,
                              batch_size=args.test_batch_size, shuffle=False, drop_last=True)
 
@@ -246,4 +246,4 @@ if __name__ == "__main__":
     if not args.eval:
         train(args, io)
     else:
-        test(args, io)
+        mytest(args, io)
