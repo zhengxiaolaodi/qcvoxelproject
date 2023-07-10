@@ -1,10 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-@Author: Yue Wang
-@Contact: yuewangx@mit.edu
-@File: main.py
-@Time: 2018/10/13 10:39 PM
+这是一个sunrgbd测试
 """
 
 from __future__ import print_function
@@ -15,7 +12,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
-from data_voxel_reshape import nyu2_18cls_voxel_dsp220
+from data_voxel_reshape import sun_class_try
 from model_nyu2_voxel_dsmp_nozeropoint import DGCNN_voxel_reshape
 import numpy as np
 from torch.utils.data import DataLoader
@@ -26,15 +23,15 @@ import h5py
 
 
 def _init_():
-    if not os.path.exists('./model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin'):
-        os.makedirs('./model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin')
-    if not os.path.exists('./model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin/model_n0_knn_voxel_sequence_vcls759'):
-        os.makedirs('./model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin/model_n0_knn_voxel_sequence_vcls759')
+    if not os.path.exists('./model/sunrgbd__try'):
+        os.makedirs('./model/sunrgbd__try')
+    if not os.path.exists('./model/sunrgbd__try/model_n0_knn_voxel_sequence_vcls759'):
+        os.makedirs('./model/sunrgbd__try/model_n0_knn_voxel_sequence_vcls759')
 
 
 
 def train(args, io):
-    DataLoader(nyu2_18cls_voxel_dsp220('train'), num_workers=8,
+    train_loader=DataLoader(sun_class_try('train'), num_workers=4,
                              batch_size=args.batch_size, shuffle=True, drop_last=True)
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -47,7 +44,7 @@ def train(args, io):
         raise Exception("Not implemented")
     print(str(model))
 
-    model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3])#设置调用的GPU
+    model = torch.nn.DataParallel(model, device_ids=[0,1, 2,3])#设置调用的GPU
     print("Let's use", torch.cuda.device_count(), "GPUs!")
 
 
@@ -93,7 +90,7 @@ def train(args, io):
             #voxel_sequence = torch.LongTensor(voxel_sequence).cuda()
             batch_size = args.batch_size
             opt.zero_grad()
-            logits = model(data_arr, cloud_len_list, 759)   #####
+            logits = model(data_arr, cloud_len_list, 748)   #####
             label = torch.LongTensor(label).cuda()
             loss = criterion(logits, label)
             loss.backward()
@@ -121,7 +118,7 @@ def train(args, io):
 
 
 def a_test(args, io):
-    test_loader = DataLoader(nyu2_18cls_voxel_dsp220('test'), num_workers=8,
+    test_loader = DataLoader(sun_class_try('test'), num_workers=8,
                              batch_size=args.test_batch_size, shuffle=False, drop_last=True)
 
     device = torch.device("cuda" if args.cuda else "cpu")
@@ -148,7 +145,7 @@ def a_test(args, io):
             cloud_len_list = torch.LongTensor(cloud_len_list).cuda()
             #voxel_sequence = torch.LongTensor(voxel_sequence).cuda()
             batch_size = args.test_batch_size
-            logits = model(data_arr, cloud_len_list, 759)    ###############
+            logits = model(data_arr, cloud_len_list, 748)    ###############
 
             label = torch.LongTensor(label).cuda()
             preds = logits.max(dim=1)[1]
@@ -187,7 +184,7 @@ if __name__ == "__main__":
                         help='Model to use, [pointnet, dgcnn]')
     parser.add_argument('--dataset', type=str, default='nyu2_18cls_crop_1.6_2_voxel_downsmp', metavar='N'
                         )
-    parser.add_argument('--batch_size', type=int, default=16, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=4, metavar='batch_size',
                         help='Size of batch)')                       ## 原３２，超显存了
     parser.add_argument('--test_batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')                           ##  原１６

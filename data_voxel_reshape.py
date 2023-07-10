@@ -5,10 +5,9 @@ import h5py
 import numpy as np
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
-
+import time
 def load_data(mode):
     path = '/data4/zb/fxm_dgcnn_data/nyu2_sub_22cls_sequence/'
-
     if mode == 'train':
         all_data = []
         all_label = []
@@ -16,6 +15,7 @@ def load_data(mode):
         all_voxel_sequence = []
         for i in range(0,5,1):
             f = h5py.File(path + 'nyu2_sub_22cls_voxel759_dsp220_train_%s.h5'%(i), 'r')
+            print(i)
             data = f['data'][:].astype('float32')
             label = f['label'][:].astype('int64')
             voxel_num = f['voxel_num'][:].astype('int64')
@@ -25,11 +25,20 @@ def load_data(mode):
             all_label.append(label)
             all_voxel_num.append(voxel_num)
             all_voxel_sequence.append(voxel_sequence)
-        all_data = np.concatenate(all_data, axis= 0)##concatenate拼接
+        # print(6)
+        # all_data = np.concatenate(all_data, axis= 0)##concatenate拼接
+        # print(6)
+        # all_label = np.concatenate(all_label, axis= 0)
+        # print(6)
+        # all_voxel_num = np.concatenate(all_voxel_num, axis=0)
+        # print(6)
+        # all_voxel_sequence = np.concatenate(all_voxel_sequence, axis=0)
         all_label = np.concatenate(all_label, axis= 0)
         all_voxel_num = np.concatenate(all_voxel_num, axis=0)
         all_voxel_sequence = np.concatenate(all_voxel_sequence, axis=0)
-
+        print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
+        all_data = np.concatenate(all_data, axis= 0)##concatenate拼接
+        print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
     if mode == 'test':
         f = h5py.File(path + 'nyu2_sub_22cls_voxel759_dsp220_test_0_21.h5', 'r')
         all_data = f['data'][:].astype('float32')
@@ -37,7 +46,7 @@ def load_data(mode):
         all_voxel_num = f['voxel_num'][:].astype('int64')
         all_voxel_sequence = f['voxel_sequence'][:].astype('int64')
         f.close()
-
+    print(333)
     return all_data, all_label, all_voxel_num, all_voxel_sequence
 
 def load_data_1449(mode):
@@ -82,6 +91,51 @@ def load_voxel_pcd_vfh():
     pcd = f['data'][:].astype('float32')
     label = np.loadtxt(path + 'kmeans_label512_nyu2_1449_train_voxelres0.2_sphere200_vfh_10cloud_per_cls', dtype= int)
     return pcd, label
+
+
+#######################################suntry
+
+def sun_try(mode):
+    path = '/data4/zb/fxm_dgcnn_data/sun_rgbd/'
+
+    all_data = []
+    all_label = []
+    all_voxel_num = []
+    all_voxel_sequence = []
+
+    f = h5py.File(path + 'sun_%s'%(mode), 'r')
+    data = f['data'][:].astype('float32')
+    label = f['label'][:].astype('int64')
+    voxel_num = f['voxel_num'][:].astype('int64')###astype修改数据类型
+    voxel_sequence = f['voxel_sequence'][:].astype('int64')
+    f.close()
+
+    return data, label, voxel_num, voxel_sequence
+
+
+class sun_class_try(Dataset):
+    """
+    data 数组，结构是[b,v,n,3]　v= 169, n= 200
+    label　数组，结构是[l1,l2,...,ln]
+    """
+    def __init__(self, partition):
+        self.data, self.label, self.voxel_num, self.voxel_sequence = sun_try(partition)
+        self.partition = partition
+
+    def __getitem__(self, item):   #fxm: 表示取第几个样例，item means index of sample
+        pointcloud = self.data[item]
+        label = self.label[item]
+        cloud_len_list = self.voxel_num[item]
+        voxel_sequence = self.voxel_sequence[item]
+        return pointcloud, label, cloud_len_list, voxel_sequence
+
+    def __len__(self):
+        #print(len(self.data))
+        return len(self.data)
+
+
+#######################################suntry
+
 
 
 

@@ -49,7 +49,8 @@ def train(args, io):
         raise Exception("Not implemented")
     print(str(model))
 
-    model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    #model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    model = torch.nn.DataParallel(model, device_ids=[0, 1,2,3])
     print("Let's use", torch.cuda.device_count(), "GPUs!")
 
 

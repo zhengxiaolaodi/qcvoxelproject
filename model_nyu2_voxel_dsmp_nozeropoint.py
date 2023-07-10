@@ -180,10 +180,10 @@ class DGCNN_voxel_reshape(nn.Module):
         #     accout += cloud_len_list[i]
         # del input
         ######
-        x = input.view(-1, self.point_num, 3)
+        x = input.view(-1, self.point_num, 9)
         x = x.permute(0, 2, 1)
         batch_size = x.size(0)                 ## x维度[b,x,n]  b_s = 16 x 169
-        x = get_graph_feature_nozero(x, k=self.k)     ## 维度是[b,2*3,n,k]
+        x = (x, k=self.k)     ## 维度是[b,2*3,n,k]
         x = self.conv1(x)                      ## 维度[b,16,n,k]
         x1 = x.max(dim=-1, keepdim=False)[0]   ## 维度[b,16,n]
 
