@@ -327,7 +327,7 @@ class DGCNN_voxel_reshape(nn.Module):
             nn.Linear(759*10, 4096),
             nn.LeakyReLU(negative_slope=0.2),
             nn.Dropout(p=args.dropout),
-            nn.Linear(4096, 18)
+            nn.Linear(4096, 22)
         )
 
 

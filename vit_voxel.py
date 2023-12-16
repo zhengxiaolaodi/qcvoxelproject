@@ -139,10 +139,13 @@ class Attention(nn.Module):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
+
         self.heads = heads
         self.scale = dim_head ** -0.5
+
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
+
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
@@ -178,69 +181,6 @@ class Transformer(nn.Module):
             x = ff(x) + x
         return x
 
-class MyNetwork(nn.Module):
-    def __init__(self,N_dim,C_dim):
-        super(MyNetwork, self).__init__()
-        # self.fc_n=nn.Sequential(nn.Linear(N_dim, N_dim),
-        #                        nn.ReLU(),
-        #                        nn.Linear(N_dim,N_dim)
-        # )
-        # self.fc_c=nn.Sequential(nn.Linear(C_dim, C_dim),
-        #                        nn.ReLU(),
-        #                        nn.Linear(C_dim,C_dim)
-        # )
-        self.fc1 = nn.Linear(N_dim, N_dim)   # 隐藏层1
-        self.fc2 = nn.Linear(N_dim, N_dim)    # 隐藏层2
-        self.fc3 = nn.Linear(C_dim, C_dim)    # 隐藏层3
-        self.fc4 = nn.Linear(C_dim, C_dim)    # 输出层
-
-        # 使用Xavier初始化来初始化权重
-        nn.init.xavier_uniform_(self.fc1.weight)
-        nn.init.xavier_uniform_(self.fc2.weight)
-        nn.init.xavier_uniform_(self.fc3.weight)
-        nn.init.xavier_uniform_(self.fc4.weight)
-
-    def forward(self, x):
-        x_n=torch.max(x,axis=-1)[0]
-        x_c=torch.max(x,axis=-2)[0]
-        x_n = torch.relu(self.fc1(x_n))
-        x_n = self.fc2(x_n)
-        x_c = torch.relu(self.fc3(x_c))
-        x_c = self.fc4(x_c)
-        x_n=x_n.reshape([x_n.shape[0],x_n.shape[1],1])
-        x_c=x_c.reshape([x_c.shape[0],1,x_c.shape[1]])
-        return x_c,x_n
-
-
-def input_remake(input):
-    x = torch.as_tensor(x, dtype=torch.float32)
-    net = MyNetwork(x.shape[-2], x.shape[-1])
-    # x=x.reshape([x.shape[0],x.shape[1],x.shape[2]*x.shape[3]])
-    # x_s = np.max(x,axis=-1)
-    # x_s=x_s.reshape([x_s.shape[0],x_s.shape[1],1])
-    # x_t =np.max(x,axis=-2)
-    # x_t=x_t.reshape([x_t.shape[0],1,x_t.shape[1]])
-    x_s, x_t = net(x)
-    print(x_s.shape)
-    print(x_t.shape)
-    x_s = x_s.repeat(1, input.shape[-2], 1)
-    x_t = x_t.repeat(1, 1, input.shape[-1])
-    print(x_s.shape)
-    print(x_t.shape)
-    y = torch.zeros([x.shape[0], x.shape[1], x.shape[2]])
-    for i in range(x.shape[0]):
-        y[i, ::] = torch.multiply(x_t[i, :, :], x_s[i, :, :])
-    print(y.shape)
-    z = torch.mean(x, dim=-1).reshape([x.shape[0], x.shape[1], 1])
-    print(z.shape)
-    result = torch.cat([y, z], dim=-1)
-    print(result.shape)
-    return result
-
-
-
-
-
 
 class voxel_dgcnn(nn.Module):
     def __init__(self, dim):
@@ -258,7 +198,7 @@ class voxel_dgcnn(nn.Module):
         # self.bn4 = nn.BatchNorm2d(128)
         self.bn5 = nn.BatchNorm1d(512)
 
-        self.conv1 = nn.Sequential(nn.Conv2d(6, 32, kernel_size=1, bias=False),
+        self.conv1 = nn.Sequential(nn.Conv2d(12, 32, kernel_size=1, bias=False),
                                    # self.bn
                                    nn.LeakyReLU(negative_slope=0.2))
         self.conv2 = nn.Sequential(nn.Conv2d(32 * 2, 32, kernel_size=1, bias=False),
@@ -282,7 +222,7 @@ class voxel_dgcnn(nn.Module):
 
     def forward(self, input):
 
-        x = input.view(-1, self.point_num, 3)
+        x = input.view(-1, self.point_num, 6)
         x = x.permute(0, 2, 1)
         batch_size = x.size(0)  ## x维度[b,x,n]  b_s = 16 x 169
         x = get_graph_feature_nozero(x, k=self.k)  ## 维度是[b,2*3,n,k]
@@ -321,12 +261,16 @@ class DGCNN_voxel_reshape(nn.Module):
         super().__init__()
         self.voxel_cls = dim
         self.voxel_embedding = voxel_dgcnn(dim)
+
         #self.pos_embedding = nn.Parameter(torch.randn(1, 759 + 1, dim))
         self.cls_token = nn.Parameter(torch.randn(1, 1, dim))   ##　对于分类元素是随机初始化，并参与训练的
         self.dropout = nn.Dropout(emb_dropout)
+
         self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
+
         self.pool = pool
         self.to_latent = nn.Identity()
+
         self.classifier = nn.Sequential(
             nn.Linear(dim, 512),
             nn.LeakyReLU(negative_slope=0.2),
@@ -337,7 +281,7 @@ class DGCNN_voxel_reshape(nn.Module):
     def forward(self, input, cloud_len_list, voxel_sequence):
         ###### handling the input,from [b,1883,200,3] to [tt,200,3]
         len_cloud = cloud_len_list.shape[0]
-        x = torch.zeros((sum(cloud_len_list), input.shape[-2], input.shape[-1])).cuda()                                  ######################################
+        x = torch.zeros((sum(cloud_len_list), 200, 3)).cuda()                                  ######################################
         accout = 0
         for i in range(len_cloud):
             x[accout:accout + cloud_len_list[i], :, :] = input[i, :cloud_len_list[i], :, :]
@@ -352,7 +296,6 @@ class DGCNN_voxel_reshape(nn.Module):
         x = self.voxel_embedding(x)
         voxel_fea = x
         #print(x.shape, 'voxel dgcnn shape')
-
         xx = torch.zeros(len_cloud, 748, self.voxel_cls).cuda()                                    # xx means voxel features
         start_num = 0
         for xx_i in range(len_cloud):
@@ -365,11 +308,8 @@ class DGCNN_voxel_reshape(nn.Module):
         #x += self.pos_embedding[:, :(n + 1)]
         x = positional_adding(x, voxel_sequence, cloud_len_list, d_model=self.voxel_cls, max_len= 748)             ##########################
         x = self.dropout(x)
-
         x = self.transformer(x, voxel_sequence, cloud_len_list)
-
         x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
-
         x = self.to_latent(x)
         MMM=self.classifier(x)
         return self.classifier(x), voxel_fea

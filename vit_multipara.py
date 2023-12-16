@@ -1,10 +1,10 @@
 import torch
 from torch import nn
-
+import numpy as np
 from einops import rearrange, repeat
 from einops.layers.torch import Rearrange
 from torch.utils.data import DataLoader
-from data_voxel_reshape import nyu2_18cls_voxel_dsp220, nyu2_1449_6cls_voxel_dsp200
+#from data_voxel_reshape import nyu2_18cls_voxel_dsp220, nyu2_1449_6cls_voxel_dsp200
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import math
@@ -31,38 +31,33 @@ def knn_nozero(x, k):
     pairwise_distance = pairwise_distance* xx_zero_sign
     idx = pairwise_distance.topk(k=k, dim=-1)[1]
     ####
-
-
     return idx
+
+
 
 def get_graph_feature_nozero(x, k=10, idx=None):
     batch_size = x.size(0)
     num_points = x.size(2)
-    x = x.view(batch_size, -1, num_points)
+    x = x.view(batch_size, -1, num_points)#[2385,3,200]
     if idx is None:
         idx = knn_nozero(x, k=k)  # (batch_size, num_points, k)
     device = torch.device('cuda')
-
     idx_base = torch.arange(0, batch_size, device=device).view(-1, 1, 1) * num_points  # [b,1,1]
     # idx_base = torch.arange(0, batch_size).view(-1, 1, 1) * num_points   # fxm: cpu测试版
-
     idx = idx + idx_base  # [b,n,k]
-
     idx = idx.view(-1)  # fxm 这里的idx是一个向量长度b*n*k,每个b中每个点最近邻的k个点的编号索引
-
     _, num_dims, _ = x.size()
-
     x = x.transpose(2,
                     1).contiguous()  # (batch_size, num_points, num_dims)  -> (batch_size*num_points, num_dims) #   batch_size * num_points * k + range(0, batch_size*num_points)
-    feature = x.view(batch_size * num_points, -1)[idx, :]  # [b*n*k,c]
+    feature = x.view(batch_size * num_points, -1)  # [b*n*k,c]
+    feature=feature[idx,:]
     feature = feature.view(batch_size, num_points, k, num_dims)
     x = x.view(batch_size, num_points, 1, num_dims).repeat(1, 1, k, 1)  ## fxm: 将每个点重复k次，x的维度是[b,n,k,d]
     #                                                                           ,和feature一样
+    #result=feature_make(x,feature)
     feature = torch.cat((feature - x, x), dim=3).permute(0, 3, 1,
                                                          2).contiguous()  # b之后按xyz...分(这里维度乘２因为拼接了原值与差值)，再按n分，最后是k
-
     return feature
-
 def positional_adding(x, voxel_sequence, cloud_len_list, d_model, max_len=748):     ###################################################
     """
     function: add the voxel sequence values to every elements of voxel features.
@@ -75,8 +70,9 @@ def positional_adding(x, voxel_sequence, cloud_len_list, d_model, max_len=748): 
     for i in range(batch_size):
         pe = torch.zeros(max_len, d_model).cuda()
         position = voxel_sequence[i].unsqueeze(1)
+
         pe[:, 0::2] = torch.sin(position * div_term)
-        pe[:, 1::2] = torch.cos(position * div_term)
+        pe[:, 1::2] = torch.cos(position * div_term[0:pe[:, 1::2].shape[-1]])
         pe[:, cloud_len_list[i]:] = 0
         x[i, 1:, :] = x[i, 1:, :] + pe
     new_x = x
@@ -139,17 +135,20 @@ class Attention(nn.Module):
         super().__init__()
         inner_dim = dim_head *  heads
         project_out = not (heads == 1 and dim_head == dim)
+
         self.heads = heads
         self.scale = dim_head ** -0.5
+
         self.attend = nn.Softmax(dim = -1)
         self.to_qkv = nn.Linear(dim, inner_dim * 3, bias = False)
+
         self.to_out = nn.Sequential(
             nn.Linear(inner_dim, dim),
             nn.Dropout(dropout)
         ) if project_out else nn.Identity()
 
     def forward(self, x, voxel_sequence=0, cloud_len_list=0):
-        qkv = self.to_qkv(x).chunk(3, dim = -1)                                                        #这里有个9参数
+        qkv = self.to_qkv(x).chunk(3, dim = -1)
         q, k, v = map(lambda t: rearrange(t, 'b n (h d) -> b h n d', h = self.heads), qkv)
 
         dots = torch.matmul(q, k.transpose(-1, -2)) * self.scale   ## dots size: [b, head=16, seq=760, seq=760]
@@ -178,68 +177,6 @@ class Transformer(nn.Module):
             x = ff(x) + x
         return x
 
-class MyNetwork(nn.Module):
-    def __init__(self,N_dim,C_dim):
-        super(MyNetwork, self).__init__()
-        # self.fc_n=nn.Sequential(nn.Linear(N_dim, N_dim),
-        #                        nn.ReLU(),
-        #                        nn.Linear(N_dim,N_dim)
-        # )
-        # self.fc_c=nn.Sequential(nn.Linear(C_dim, C_dim),
-        #                        nn.ReLU(),
-        #                        nn.Linear(C_dim,C_dim)
-        # )
-        self.fc1 = nn.Linear(N_dim, N_dim)   # 隐藏层1
-        self.fc2 = nn.Linear(N_dim, N_dim)    # 隐藏层2
-        self.fc3 = nn.Linear(C_dim, C_dim)    # 隐藏层3
-        self.fc4 = nn.Linear(C_dim, C_dim)    # 输出层
-
-        # 使用Xavier初始化来初始化权重
-        nn.init.xavier_uniform_(self.fc1.weight)
-        nn.init.xavier_uniform_(self.fc2.weight)
-        nn.init.xavier_uniform_(self.fc3.weight)
-        nn.init.xavier_uniform_(self.fc4.weight)
-
-    def forward(self, x):
-        x_n=torch.max(x,axis=-1)[0]
-        x_c=torch.max(x,axis=-2)[0]
-        x_n = torch.relu(self.fc1(x_n))
-        x_n = self.fc2(x_n)
-        x_c = torch.relu(self.fc3(x_c))
-        x_c = self.fc4(x_c)
-        x_n=x_n.reshape([x_n.shape[0],x_n.shape[1],1])
-        x_c=x_c.reshape([x_c.shape[0],1,x_c.shape[1]])
-        return x_c,x_n
-
-
-def input_remake(input):
-    x = torch.as_tensor(x, dtype=torch.float32)
-    net = MyNetwork(x.shape[-2], x.shape[-1])
-    # x=x.reshape([x.shape[0],x.shape[1],x.shape[2]*x.shape[3]])
-    # x_s = np.max(x,axis=-1)
-    # x_s=x_s.reshape([x_s.shape[0],x_s.shape[1],1])
-    # x_t =np.max(x,axis=-2)
-    # x_t=x_t.reshape([x_t.shape[0],1,x_t.shape[1]])
-    x_s, x_t = net(x)
-    print(x_s.shape)
-    print(x_t.shape)
-    x_s = x_s.repeat(1, input.shape[-2], 1)
-    x_t = x_t.repeat(1, 1, input.shape[-1])
-    print(x_s.shape)
-    print(x_t.shape)
-    y = torch.zeros([x.shape[0], x.shape[1], x.shape[2]])
-    for i in range(x.shape[0]):
-        y[i, ::] = torch.multiply(x_t[i, :, :], x_s[i, :, :])
-    print(y.shape)
-    z = torch.mean(x, dim=-1).reshape([x.shape[0], x.shape[1], 1])
-    print(z.shape)
-    result = torch.cat([y, z], dim=-1)
-    print(result.shape)
-    return result
-
-
-
-
 
 
 class voxel_dgcnn(nn.Module):
@@ -259,7 +196,7 @@ class voxel_dgcnn(nn.Module):
         self.bn5 = nn.BatchNorm1d(512)
 
         self.conv1 = nn.Sequential(nn.Conv2d(6, 32, kernel_size=1, bias=False),
-                                   # self.bn
+                                   # self.bn1,
                                    nn.LeakyReLU(negative_slope=0.2))
         self.conv2 = nn.Sequential(nn.Conv2d(32 * 2, 32, kernel_size=1, bias=False),
                                    # self.bn2,
@@ -282,27 +219,22 @@ class voxel_dgcnn(nn.Module):
 
     def forward(self, input):
 
-        x = input.view(-1, self.point_num, 3)
+        x = input.view(-1, self.point_num, input.shape[-1])
         x = x.permute(0, 2, 1)
         batch_size = x.size(0)  ## x维度[b,x,n]  b_s = 16 x 169
         x = get_graph_feature_nozero(x, k=self.k)  ## 维度是[b,2*3,n,k]
         x = self.conv1(x)  ## 维度[b,16,n,k]
         x1 = x.max(dim=-1, keepdim=False)[0]  ## 维度[b,16,n]
-
         x = get_graph_feature_nozero(x1, k=self.k)
         x = self.conv2(x)
         x2 = x.max(dim=-1, keepdim=False)[0]  ##  [b,16,n]
-
         x = get_graph_feature_nozero(x2, k=self.k)
         x = self.conv3(x)
         x3 = x.max(dim=-1, keepdim=False)[0]  ##  [b,32,n]
-
         x = get_graph_feature_nozero(x3, k=self.k)
         x = self.conv4(x)
         x4 = x.max(dim=-1, keepdim=False)[0]  ##  [b,64,n]
-
         x = torch.cat((x1, x2, x3, x4), dim=1)  ##  [b,128,n]
-
         x = self.conv5(x)
         x1 = F.adaptive_max_pool1d(x, 1).view(batch_size, -1)  ## x dim is (b,c,n), after pooling dim is (b,c,1)
         x2 = F.adaptive_avg_pool1d(x, 1).view(batch_size, -1)  ## after viewing dim is (b,c)
@@ -316,63 +248,250 @@ class voxel_dgcnn(nn.Module):
 
         return x
 
+
+
+class PointNet(nn.Module):
+    def __init__(self, input_channels=3, output_channels=256):
+        super(PointNet, self).__init__()
+
+        self.conv1 = nn.Conv1d(input_channels, 64, kernel_size=1, bias=False)
+        self.conv2 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
+        self.conv3 = nn.Conv1d(64, 64, kernel_size=1, bias=False)
+        self.conv4 = nn.Conv1d(64, 128, kernel_size=1, bias=False)
+        self.conv5 = nn.Conv1d(128, output_channels, kernel_size=1, bias=False)
+        self.bn1 = nn.BatchNorm1d(64)
+        self.bn2 = nn.BatchNorm1d(64)
+        self.bn3 = nn.BatchNorm1d(64)
+        self.bn4 = nn.BatchNorm1d(128)
+        self.bn5 = nn.BatchNorm1d(output_channels)
+        # self.linear1 = nn.Linear(args.emb_dims, 512, bias=False)
+        # self.bn6 = nn.BatchNorm1d(512)
+        # self.dp1 = nn.Dropout()
+        # self.linear2 = nn.Linear(512, output_channels)
+
+    def forward(self, x):
+        x=torch.permute(x, (0, 2, 1))
+        x = F.relu(self.bn1(self.conv1(x)))
+        x = F.relu(self.bn2(self.conv2(x)))
+        x = F.relu(self.bn3(self.conv3(x)))
+        x = F.relu(self.bn4(self.conv4(x)))
+        x = F.relu(self.bn5(self.conv5(x)))
+        x = F.adaptive_max_pool1d(x, 1).squeeze()
+        # x = F.relu(self.bn6(self.linear1(x)))
+        # x = self.dp1(x)
+        # x = self.linear2(x)
+        return x
 class DGCNN_voxel_reshape(nn.Module):
-    def __init__(self, num_classes, dim, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
+    def __init__(self, num_classes,dim1,dim2,dim3, depth, heads, mlp_dim, pool = 'cls', channels = 3, dim_head = 64, dropout = 0., emb_dropout = 0.):
         super().__init__()
-        self.voxel_cls = dim
-        self.voxel_embedding = voxel_dgcnn(dim)
+        self.voxel_cls1 = dim1
+        self.voxel_embedding1 = voxel_dgcnn(dim1)
+        self.pointnet1=PointNet(input_channels=3,output_channels=dim1)
         #self.pos_embedding = nn.Parameter(torch.randn(1, 759 + 1, dim))
-        self.cls_token = nn.Parameter(torch.randn(1, 1, dim))   ##　对于分类元素是随机初始化，并参与训练的
+        self.cls_token1 = nn.Parameter(torch.randn(1, 1, dim1))   ##　对于分类元素是随机初始化，并参与训练的
         self.dropout = nn.Dropout(emb_dropout)
-        self.transformer = Transformer(dim, depth, heads, dim_head, mlp_dim, dropout)
+        self.transformer1 = Transformer(dim1, depth, heads, dim_head, mlp_dim, dropout)
         self.pool = pool
         self.to_latent = nn.Identity()
         self.classifier = nn.Sequential(
-            nn.Linear(dim, 512),
+            nn.Linear(dim1+dim2+dim3, 512*3),
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Dropout(p=0.2),
+            nn.Linear(512*3, 512),
             nn.LeakyReLU(negative_slope=0.2),
             nn.Dropout(p=0.2),
             nn.Linear(512, num_classes)
         )
-
-    def forward(self, input, cloud_len_list, voxel_sequence):
+        ############################
+        self.voxel_cls2= dim2
+        self.voxel_embedding2 = voxel_dgcnn(dim2)
+        self.pointnet2=PointNet(input_channels=3,output_channels=dim2)
+        #self.pos_embedding = nn.Parameter(torch.randn(1, 759 + 1, dim))
+        self.cls_token2 = nn.Parameter(torch.randn(1, 1, dim2))   ##　对于分类元素是随机初始化，并参与训练的
+        self.dropout = nn.Dropout(emb_dropout)
+        self.transformer2 = Transformer(dim2, depth, heads, dim_head, mlp_dim, dropout)
+        self.pool = pool
+        self.to_latent = nn.Identity()
+        self.classifier2 = nn.Sequential(
+            nn.Linear(dim2, 512),
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Dropout(p=0.2),
+            nn.Linear(512, num_classes)
+        )
+        ############################
+        self.voxel_cls3 = dim3
+        self.voxel_embedding3 = voxel_dgcnn(dim3)
+        self.pointnet3=PointNet(input_channels=3,output_channels=dim3)
+        #self.pos_embedding = nn.Parameter(torch.randn(1, 759 + 1, dim))
+        self.cls_token3 = nn.Parameter(torch.randn(1, 1, dim3))   ##　对于分类元素是随机初始化，并参与训练的
+        self.dropout = nn.Dropout(emb_dropout)
+        self.transformer3 = Transformer(dim3, depth, heads, dim_head, mlp_dim, dropout)
+        self.pool = pool
+        self.to_latent = nn.Identity()
+        self.classifier3 = nn.Sequential(
+            nn.Linear(dim1+dim2+dim3, 512),
+            nn.LeakyReLU(negative_slope=0.2),
+            nn.Dropout(p=0.2),
+            nn.Linear(512, num_classes)
+        )
+    def forward(self, x1,x2,x3, cloud_len_list_input, voxel_sequence_input,voxel_point_number):
+        result_x = np.zeros([cloud_len_list_input.shape[0], 356 * 3])
+        result_x = torch.FloatTensor(result_x).cuda()
+        x_list = [x1, x2, x3]
+        voxel_sequence_1 = voxel_sequence_input[:, 0:x1.shape[1]]
+        voxel_sequence_2 = voxel_sequence_input[:, x1.shape[1]:(x1.shape[1] + x2.shape[1])]
+        voxel_sequence_3 = voxel_sequence_input[:, (x1.shape[1] + x2.shape[1]):(x1.shape[1] + x2.shape[1] + x3.shape[1])]
+        voxel_seq_list = [voxel_sequence_1, voxel_sequence_2, voxel_sequence_3]
+        voxel_point_number_1 = voxel_point_number[:, 0:x1.shape[1]]
+        voxel_point_number_2 = voxel_point_number[:, x1.shape[1]:(x1.shape[1] + x2.shape[1])]
+        voxel_point_number_3 = voxel_point_number[:,
+        (x1.shape[1] + x2.shape[1]):(x1.shape[1] + x2.shape[1] + x3.shape[1])]
+        voxel_point_number_list = [voxel_point_number_1, voxel_point_number_2, voxel_point_number_3]
+        #################################################
+        input = x_list[0]
+        cloud_len_list = cloud_len_list_input[:, 0]
+        voxel_sequence = voxel_seq_list[0]
         ###### handling the input,from [b,1883,200,3] to [tt,200,3]
         len_cloud = cloud_len_list.shape[0]
-        x = torch.zeros((sum(cloud_len_list), input.shape[-2], input.shape[-1])).cuda()                                  ######################################
+        x = torch.zeros((sum(cloud_len_list), input.shape[-2], input.shape[-1])).cuda()  # 这里200，3可以考虑改一下
         accout = 0
         for i in range(len_cloud):
             x[accout:accout + cloud_len_list[i], :, :] = input[i, :cloud_len_list[i], :, :]
             accout += cloud_len_list[i]
         del input
-        ######
-        # x = input.view(-1, self.point_num, 3)
-        ########  由于每个体素所处的空间位置不同，其值差距大，有必要减去均值，相当于给所有体素平移到原点
-        # mean_x = x.mean(dim=1)
-        # x = x - mean_x.view(-1, 1, 3)
-        ########
-        x = self.voxel_embedding(x)
+        # x = self.voxel_embedding(x)
+        x=self.pointnet1(x)
+        # pointNet = PointNet(input_channels=3, output_channels=x1.shape[1])
+        # x = pointNet(x)
         voxel_fea = x
-        #print(x.shape, 'voxel dgcnn shape')
-
-        xx = torch.zeros(len_cloud, 748, self.voxel_cls).cuda()                                    # xx means voxel features
+        # print(x.shape, 'voxel dgcnn shape')
+        xx = torch.zeros(len_cloud, x1.shape[1], self.voxel_cls1).cuda()  # xx means voxel features
         start_num = 0
         for xx_i in range(len_cloud):
             xx[xx_i, :cloud_len_list[xx_i], :] = x[start_num: start_num + cloud_len_list[xx_i], :]
             start_num += cloud_len_list[xx_i]
         x = xx
         b, n, _ = x.shape
-        cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)   ####  fxm: the extra cls element
+        cls_tokens = repeat(self.cls_token1, '() n d -> b n d', b=b)
         x = torch.cat((cls_tokens, x), dim=1)
-        #x += self.pos_embedding[:, :(n + 1)]
-        x = positional_adding(x, voxel_sequence, cloud_len_list, d_model=self.voxel_cls, max_len= 748)             ##########################
+        # x += self.pos_embedding[:, :(n + 1)]
+        x = positional_adding(x, voxel_sequence, cloud_len_list, d_model=self.voxel_cls1,
+                              max_len=x1.shape[1])
         x = self.dropout(x)
+        x = self.transformer1(x, voxel_sequence, cloud_len_list)
+        x = x.mean(dim=1) if self.pool == 'mean' else x[:, 0]
+        result_x1 = self.to_latent(x)
+        #################################################
+        input = x_list[1]
+        cloud_len_list = cloud_len_list_input[:, 1]
+        voxel_sequence = voxel_seq_list[1]
+        ###### handling the input,from [b,1883,200,3] to [tt,200,3]
+        len_cloud = cloud_len_list.shape[0]
+        x = torch.zeros((sum(cloud_len_list), input.shape[-2], input.shape[-1])).cuda()  # 这里200，3可以考虑改一下
+        accout = 0
+        for i in range(len_cloud):
+            x[accout:accout + cloud_len_list[i], :, :] = input[i, :cloud_len_list[i], :, :]
+            accout += cloud_len_list[i]
+        del input
+        # x = self.voxel_embedding(x)
+        x=self.pointnet2(x)
+        # pointNet = PointNet(input_channels=3, output_channels=x1.shape[1])
+        # x = pointNet(x)
+        voxel_fea = x
+        # print(x.shape, 'voxel dgcnn shape')
+        xx = torch.zeros(len_cloud, x2.shape[1], self.voxel_cls2).cuda()  # xx means voxel features
+        start_num = 0
+        for xx_i in range(len_cloud):
+            xx[xx_i, :cloud_len_list[xx_i], :] = x[start_num: start_num + cloud_len_list[xx_i], :]
+            start_num += cloud_len_list[xx_i]
+        x = xx
+        b, n, _ = x.shape
+        cls_tokens = repeat(self.cls_token2, '() n d -> b n d', b=b)
+        x = torch.cat((cls_tokens, x), dim=1)
+        # x += self.pos_embedding[:, :(n + 1)]
+        x = positional_adding(x, voxel_sequence, cloud_len_list, d_model=self.voxel_cls2,
+                              max_len=x2.shape[1])
+        x = self.dropout(x)
+        x = self.transformer2(x, voxel_sequence, cloud_len_list)
+        x = x.mean(dim=1) if self.pool == 'mean' else x[:, 0]
+        result_x2 = self.to_latent(x)
+        #################################################
+        input = x_list[2]
+        cloud_len_list = cloud_len_list_input[:, 2]
+        voxel_sequence = voxel_seq_list[2]
+        ###### handling the input,from [b,1883,200,3] to [tt,200,3]
+        len_cloud = cloud_len_list.shape[0]
+        x = torch.zeros((sum(cloud_len_list), input.shape[-2], input.shape[-1])).cuda()  # 这里200，3可以考虑改一下
+        accout = 0
+        for i in range(len_cloud):
+            x[accout:accout + cloud_len_list[i], :, :] = input[i, :cloud_len_list[i], :, :]
+            accout += cloud_len_list[i]
+        del input
+        # x = self.voxel_embedding(x)
+        x=self.pointnet3(x)
+        # pointNet = PointNet(input_channels=3, output_channels=x1.shape[1])
+        # x = pointNet(x)
+        voxel_fea = x
+        # print(x.shape, 'voxel dgcnn shape')
+        xx = torch.zeros(len_cloud, x3.shape[1], self.voxel_cls3).cuda()  # xx means voxel features
+        start_num = 0
+        for xx_i in range(len_cloud):
+            xx[xx_i, :cloud_len_list[xx_i], :] = x[start_num: start_num + cloud_len_list[xx_i], :]
+            start_num += cloud_len_list[xx_i]
+        x = xx
+        b, n, _ = x.shape
+        cls_tokens = repeat(self.cls_token3, '() n d -> b n d', b=b)
+        x = torch.cat((cls_tokens, x), dim=1)
+        # x += self.pos_embedding[:, :(n + 1)]
+        x = positional_adding(x, voxel_sequence, cloud_len_list, d_model=self.voxel_cls3,
+                              max_len=x3.shape[1])
+        x = self.dropout(x)
+        x = self.transformer3(x, voxel_sequence, cloud_len_list)
+        x = x.mean(dim=1) if self.pool == 'mean' else x[:, 0]
+        result_x3 = self.to_latent(x)
+        #################################################
+        # for i_res in range(len(x_list)):
+        #     input=x_list[i_res]
+        #     cloud_len_list=cloud_len_list_input[:,i_res]
+        #     voxel_sequence=voxel_seq_list[i_res]
+        #     ###### handling the input,from [b,1883,200,3] to [tt,200,3]
+        #     len_cloud = cloud_len_list.shape[0]
+        #     x = torch.zeros((sum(cloud_len_list), input.shape[-2], input.shape[-1])).cuda()  # 这里200，3可以考虑改一下
+        #     accout = 0
+        #     for i in range(len_cloud):
+        #         x[accout:accout + cloud_len_list[i], :, :] = input[i, :cloud_len_list[i], :, :]
+        #         accout += cloud_len_list[i]
+        #     del input
+        #     #x = self.voxel_embedding(x)
+        #     #x=self.pointnet(x)
+        #     pointNet = PointNet(input_channels=3,output_channels=x1.shape[1])
+        #     x=pointNet(x)
+        #     voxel_fea = x
+        #     # print(x.shape, 'voxel dgcnn shape')
+        #     xx = torch.zeros(len_cloud, 356, self.voxel_cls).cuda()  # xx means voxel features
+        #     start_num = 0
+        #     for xx_i in range(len_cloud):
+        #         xx[xx_i, :cloud_len_list[xx_i], :] = x[start_num: start_num + cloud_len_list[xx_i], :]
+        #         start_num += cloud_len_list[xx_i]
+        #     x = xx
+        #     b, n, _ = x.shape
+        #     cls_tokens = repeat(self.cls_token, '() n d -> b n d', b=b)
+        #     x = torch.cat((cls_tokens, x), dim=1)
+        #     # x += self.pos_embedding[:, :(n + 1)]
+        #     x = positional_adding(x, voxel_sequence, cloud_len_list, d_model=self.voxel_cls,
+        #                           max_len=356)
+        #     x = self.dropout(x)
+        #     x = self.transformer(x, voxel_sequence, cloud_len_list)
+        #     x = x.mean(dim=1) if self.pool == 'mean' else x[:, 0]
+        #     x = self.to_latent(x)
+        #      =self.classifier(x)
+        result_x = torch.cat((result_x1,result_x2,result_x3),dim=-1)
 
-        x = self.transformer(x, voxel_sequence, cloud_len_list)
+        return self.classifier(result_x), voxel_fea
 
-        x = x.mean(dim = 1) if self.pool == 'mean' else x[:, 0]
 
-        x = self.to_latent(x)
-        MMM=self.classifier(x)
-        return self.classifier(x), voxel_fea
+
+
 
 if __name__ == '__main__':
     v = DGCNN_voxel_reshape(
@@ -393,7 +512,7 @@ if __name__ == '__main__':
             self.batch_size = 8
     arg = arg()
 
-    model = v.cuda()
+    model = v
     model = torch.nn.DataParallel(model, device_ids=[0,  1,2,3])
     ##############   加载预训练的voxel dgcnn
     # model_dict = model.state_dict()
@@ -418,9 +537,9 @@ if __name__ == '__main__':
         """
         print('%s batch: %s' % (i, data.shape))
         # print(label)
-        data = torch.FloatTensor(data).cuda()
-        cloud_len_list = torch.LongTensor(cloud_len_list).cuda()
-        voxel_seqence = torch.LongTensor(voxel_seqence).cuda()
+        data = torch.FloatTensor(data).cpu()
+        cloud_len_list = torch.LongTensor(cloud_len_list).cpu()
+        voxel_seqence = torch.LongTensor(voxel_seqence).cpu()
         out, vxoel_fea = model(data, cloud_len_list, voxel_seqence)
         print(out.shape)
         if i > 0:

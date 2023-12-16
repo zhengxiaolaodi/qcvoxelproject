@@ -16,7 +16,7 @@ import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
 from data_voxel_reshape import nyu2_18cls_voxel_dsp220, nyu2_1449_6cls_voxel_dsp200
-from vit import DGCNN_voxel_reshape
+from vit_remake import DGCNN_voxel_reshape
 import numpy as np
 from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
@@ -61,16 +61,16 @@ def train(args, io):
         raise Exception("Not implemented")
     print(str(model))
 
-    model = torch.nn.DataParallel(model, device_ids=[ 0, 1, 2, 3, 5,7])
+    model = torch.nn.DataParallel(model, device_ids=[ 0, 1, 2, 3])
     print("Let's use", torch.cuda.device_count(), "GPUs!")
-    ##############   加载预训练的voxel dgcnn
-    model_dict = model.state_dict()
-    pretrain_voxel_dgcnn = torch.load(
-        '/data4/zb/model/3D_IKEA/pretrain_for_voxel_dgcnn_by_IKEA_6cls_vfh_cluster_label356/model_pretrain_for_voxel356_vfh_nomean_198.t7')
-    pretrainning = {k: v for k, v in pretrain_voxel_dgcnn.items() if k in model_dict}
-    model_dict.update(pretrainning)
-    model.load_state_dict(model_dict)
-    ##############
+    # ##############   加载预训练的voxel dgcnn
+    # model_dict = model.state_dict()
+    # pretrain_voxel_dgcnn = torch.load(
+    #     '/data4/zb/model/3D_IKEA/pretrain_for_voxel_dgcnn_by_IKEA_6cls_vfh_cluster_label356/model_pretrain_for_voxel356_vfh_nomean_198.t7')
+    # pretrainning = {k: v for k, v in pretrain_voxel_dgcnn.items() if k in model_dict}
+    # model_dict.update(pretrainning)
+    # model.load_state_dict(model_dict)
+    # ##############
 
 
     if args.use_sgd:
@@ -241,7 +241,7 @@ if __name__ == "__main__":
                         help='Model to use, [pointnet, dgcnn]')
     parser.add_argument('--dataset', type=str, default='nyu2_18cls_crop_1.6_2_voxel_downsmp', metavar='N'
                         )
-    parser.add_argument('--batch_size', type=int, default=24, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')                       ## 原３２，超显存了
     parser.add_argument('--test_batch_size', type=int, default=14, metavar='batch_size',
                         help='Size of batch)')                           ##  原１６
@@ -257,7 +257,7 @@ if __name__ == "__main__":
                         help='enables CUDA training')
     parser.add_argument('--seed', type=int, default=1, metavar='S',
                         help='random seed (default: 1)')
-    parser.add_argument('--eval', type=bool,  default= True,        #### train(f) or test(t)
+    parser.add_argument('--eval', type=bool,  default= False,        #### train(f) or test(t)
                         help='evaluate the model')
     parser.add_argument('--point_num', type=int, default=200,
                         help='num of points to use')

@@ -59,7 +59,7 @@ def get_graph_feature(x, k=20, idx=None):
 
 
 class PointNet(nn.Module):
-    def __init__(self, args, output_channels=40):
+    def __init__(self, args, output_channels):
         super(PointNet, self).__init__()
         self.args = args
         self.conv1 = nn.Conv1d(3, 64, kernel_size=1, bias=False)
@@ -91,7 +91,7 @@ class PointNet(nn.Module):
 
 
 class DGCNN(nn.Module):
-    def __init__(self, args, output_channels=22):
+    def __init__(self, args, output_channels=6):
         super(DGCNN, self).__init__()
         self.args = args
         self.k = args.k
@@ -187,7 +187,7 @@ if __name__ == "__main__":
     loss = criterion(x_out, label)
     loss.backward()
     opt.step()
-
+    print(1)
     # model = DGCNN(arg)
     # stat(model, (1,2048,3))
 

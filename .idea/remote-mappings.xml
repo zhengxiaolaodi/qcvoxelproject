@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="RemoteMappingsManager">
+    <list>
+      <list>
+        <remote-mappings server-id="python@9487332e-be75-4cc9-a426-89ab019b74f9" />
+        <remote-mappings server-id="python@sftp://zb@172.16.200.4:22/home/zb/miniconda3/envs/qianchen/bin/python3.8">
+          <settings>
+            <list>
+              <mapping local-root="$PROJECT_DIR$" remote-root="/data4/zb/qc/multi_feature" />
+            </list>
+          </settings>
+        </remote-mappings>
+      </list>
+    </list>
+  </component>
+</project>

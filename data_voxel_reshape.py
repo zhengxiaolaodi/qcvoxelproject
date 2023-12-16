@@ -6,6 +6,73 @@ import numpy as np
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
 import time
+
+
+
+
+
+
+def load_data_sunrgbd_multi(mode):
+    #"/data4/zb/fxm_dgcnn_data/3D_IKEA/3DIKEA_6cls_voxel_356_seq_02_test"
+    path = "/data4/zb/fxm_dgcnn_data/3D_IKEA/"
+    f = h5py.File(path + '3DIKEA_6cls_voxel_356_seq_02_%s' % (mode), 'r')
+    data_02 = f['data'][:].astype('float32')
+    label = f['label'][:].astype('int64')
+    voxel_num_02 = f['voxel_num'][:].astype('int64')  ###astype修改数据类型
+    voxel_sequence_02 = f['voxel_sequence'][:].astype('int64')
+    voxel_sequence_pointnum_02 = f['voxel_point_number'][:].astype('int64')
+    f.close()
+    print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
+    path = "/data4/zb/fxm_dgcnn_data/3D_IKEA/"
+    f = h5py.File(path + '3DIKEA_6cls_voxel_356_seq_04_%s' % (mode), 'r')
+    data_04 = f['data'][:].astype('float32')
+    voxel_num_04 = f['voxel_num'][:].astype('int64')  ###astype修改数据类型
+    voxel_sequence_04 = f['voxel_sequence'][:].astype('int64')
+    voxel_sequence_04=voxel_sequence_04.reshape([voxel_sequence_04.shape[0],voxel_sequence_04.shape[1]])
+    voxel_sequence_pointnum_04 = f['voxel_point_number'][:].astype('int64')
+    f.close()
+    print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
+    path = "/data4/zb/fxm_dgcnn_data/3D_IKEA/"
+    f = h5py.File(path + '3DIKEA_6cls_voxel_356_seq_08_%s' % (mode), 'r')
+    data_08 = f['data'][:].astype('float32')
+    voxel_num_08 = f['voxel_num'][:].astype('int64')  ###astype修改数据类型
+    voxel_sequence_08 = f['voxel_sequence'][:].astype('int64')
+    voxel_sequence_08 = voxel_sequence_08.reshape([voxel_sequence_08.shape[0], voxel_sequence_08.shape[1]])
+    voxel_sequence_pointnum_08 = f['voxel_point_number'][:].astype('int64')
+    f.close()
+    print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
+    voxel_num_result=np.concatenate((voxel_num_02,voxel_num_04,voxel_num_08),axis=-1)
+    voxel_sequence_result=np.concatenate((voxel_sequence_02,voxel_sequence_04,voxel_sequence_08),axis=-1)
+    voxel_pointnum_result=np.concatenate((voxel_sequence_pointnum_02,voxel_sequence_pointnum_04,voxel_sequence_pointnum_08),axis=-1)
+    return data_02, data_04, data_08,label,voxel_num_result,voxel_sequence_result,voxel_pointnum_result
+
+
+
+
+class sunrgbd_9cls_voxel_multi(Dataset):#这是提取数据的一个类
+    def __init__(self, partition):
+        self.data_02, self.data_04, self.data_08,self.label,self.voxel_num_result,self.voxel_sequence_result,self.voxel_pointnum_result = load_data_sunrgbd_multi(partition)
+        self.partition = partition
+    def __getitem__(self, item):   #fxm: 表示取第几个样例，item means index of sample
+        data_02_item = self.data_02[item]
+        data_04_item = self.data_04[item]
+        data_08_item = self.data_08[item]
+        label = self.label[item]
+        cloud_len_list = self.voxel_num_result[item]
+        voxel_sequence = self.voxel_sequence_result[item]
+        voxel_pointnum_result=self.voxel_pointnum_result[item]
+        return data_02_item,data_04_item,data_08_item, label, cloud_len_list, voxel_sequence,voxel_pointnum_result
+    def __len__(self):
+        return len(self.data_02)
+
+
+
+
+
+
+
+
+
 def load_data(mode):
     path = '/data4/zb/fxm_dgcnn_data/nyu2_sub_22cls_sequence/'
     if mode == 'train':
@@ -102,8 +169,11 @@ def sun_try(mode):
     all_label = []
     all_voxel_num = []
     all_voxel_sequence = []
-
-    f = h5py.File(path + 'sun_%s'%(mode), 'r')
+    #f = h5py.File(path + '"/data4/zb/fxm_dgcnn_data/sun_rgbd/sun_9cls_voxel_748_seq_train"%s'%(mode), 'r')
+    #f = h5py.File(path + 'sun_9cls_voxel_748_seq_%s' % (mode), 'r')
+    #f = h5py.File(path + 'newsun_%s' % (mode), 'r')
+    #f = h5py.File(path + 'newsun_6feature_%s' % (mode), 'r')
+    f = h5py.File(path + 'SUN_data_%s' % (mode), 'r')
     data = f['data'][:].astype('float32')
     label = f['label'][:].astype('int64')
     voxel_num = f['voxel_num'][:].astype('int64')###astype修改数据类型
@@ -111,7 +181,6 @@ def sun_try(mode):
     f.close()
 
     return data, label, voxel_num, voxel_sequence
-
 
 class sun_class_try(Dataset):
     """
@@ -135,6 +204,63 @@ class sun_class_try(Dataset):
 
 
 #######################################suntry
+
+
+
+
+##########################################3dikea
+#######################################suntry
+
+def dikea_try(mode):
+    path = '/data4/zb/fxm_dgcnn_data/3D_IKEA/'
+
+    all_data = []
+    all_label = []
+    all_voxel_num = []
+    all_voxel_sequence = []
+    #f = h5py.File(path + "3DIKEA_6cls_voxel_356_seq_%s"%(mode), 'r')
+    #f = h5py.File(path + 'sun_9cls_voxel_748_seq_%s' % (mode), 'r')
+    #f = h5py.File(path + 'newsun_%s' % (mode), 'r')
+    f = h5py.File(path + 'newsun_6feature_%s' % (mode), 'r')
+    #f = h5py.File(path + 'SUN_data_%s' % (mode), 'r')
+    data = f['data'][:].astype('float32')
+    data=data[:,:,:,3:6]
+    label = f['label'][:].astype('int64')
+    voxel_num = f['voxel_num'][:].astype('int64')###astype修改数据类型
+    voxel_sequence = f['voxel_sequence'][:].astype('int64')
+    f.close()
+
+    return data, label, voxel_num, voxel_sequence
+
+class dikea_class_try(Dataset):
+    """
+    data 数组，结构是[b,v,n,3]　v= 169, n= 200
+    label　数组，结构是[l1,l2,...,ln]
+    """
+    def __init__(self, partition):
+        self.data, self.label, self.voxel_num, self.voxel_sequence = dikea_try(partition)
+        self.partition = partition
+
+    def __getitem__(self, item):   #fxm: 表示取第几个样例，item means index of sample
+        pointcloud = self.data[item]
+        label = self.label[item]
+        cloud_len_list = self.voxel_num[item]
+        voxel_sequence = self.voxel_sequence[item]
+        return pointcloud, label, cloud_len_list, voxel_sequence
+
+    def __len__(self):
+        #print(len(self.data))
+        return len(self.data)
+
+
+#######################################suntry
+
+
+
+
+
+
+
 
 
 

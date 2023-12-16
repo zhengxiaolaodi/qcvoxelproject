@@ -34,7 +34,7 @@ def _init_():
 
 
 def train(args, io):
-    DataLoader(nyu2_18cls_voxel_dsp220('train'), num_workers=8,
+    train_loader=DataLoader(nyu2_18cls_voxel_dsp220('train'), num_workers=8,
                              batch_size=args.batch_size, shuffle=True, drop_last=True)
     device = torch.device("cuda" if args.cuda else "cpu")
 
@@ -128,7 +128,7 @@ def a_test(args, io):
 
     #Try to load models
     model = DGCNN_voxel_reshape(args, output_channels=22).to(device)
-    model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3])
+    model = torch.nn.DataParallel(model, device_ids=[0, 1, 2, 3,4,5,6,7])
 
     for iii in range(172):   #### test the last 50 models
         model_path = './model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin/model_n0_knn_voxel_sequence_vcls759/model_nobn_novxlpad_%s.t7'%(iii)
@@ -187,7 +187,7 @@ if __name__ == "__main__":
                         help='Model to use, [pointnet, dgcnn]')
     parser.add_argument('--dataset', type=str, default='nyu2_18cls_crop_1.6_2_voxel_downsmp', metavar='N'
                         )
-    parser.add_argument('--batch_size', type=int, default=16, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=1, metavar='batch_size',
                         help='Size of batch)')                       ## 原３２，超显存了
     parser.add_argument('--test_batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')                           ##  原１６

@@ -128,7 +128,7 @@ class DGCNN_voxel_reshape(nn.Module):
         #self.bn4 = nn.BatchNorm2d(128)
         self.bn5 = nn.BatchNorm1d(args.emb_dims)
 
-        self.conv1 = nn.Sequential(nn.Conv2d(6, 32, kernel_size=1, bias=False),
+        self.conv1 = nn.Sequential(nn.Conv2d(18, 32, kernel_size=1, bias=False),
                                    #self.bn1,
                                    nn.LeakyReLU(negative_slope=0.2))
         self.conv2 = nn.Sequential(nn.Conv2d(32*2, 32, kernel_size=1, bias=False),
@@ -180,10 +180,10 @@ class DGCNN_voxel_reshape(nn.Module):
         #     accout += cloud_len_list[i]
         # del input
         ######
-        x = input.view(-1, self.point_num, 9)
+        x = input.view(-1, self.point_num, 9)#x=(680,220,9)
         x = x.permute(0, 2, 1)
         batch_size = x.size(0)                 ## x维度[b,x,n]  b_s = 16 x 169
-        x = (x, k=self.k)     ## 维度是[b,2*3,n,k]
+        x = get_graph_feature_nozero(x, k=self.k)     ## 维度是[b,2*3,n,k]
         x = self.conv1(x)                      ## 维度[b,16,n,k]
         x1 = x.max(dim=-1, keepdim=False)[0]   ## 维度[b,16,n]
 
@@ -258,7 +258,7 @@ if __name__ == "__main__":
             self.v_k = 20
             self.dropout = 0.5
             self.emb_dims = 256
-            self.point_num = 220
+            self.point_num = 200
             self.lr = 0.001
             self.epochs = 100
             self.voxel_cls = 759

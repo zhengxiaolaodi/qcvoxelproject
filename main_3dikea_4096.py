@@ -1,11 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+
+
+
 """
 @Author: Yue Wang
 @Contact: yuewangx@mit.edu
 @File: main.py
 @Time: 2018/10/13 10:39 PM
 """
+
+
 
 from __future__ import print_function
 import os
@@ -16,7 +21,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
-from data_4096 import nyu2_4096
+from data_4096 import d3ikea_4096
 from model_nyu2_4096 import PointNet, DGCNN
 import numpy as np
 from torch.utils.data import DataLoader
@@ -31,9 +36,9 @@ def _init_():
 
 
 def train(args, io):
-    train_loader = DataLoader(nyu2_4096(partition='train', num_points=args.num_points), num_workers=8,
+    train_loader = DataLoader(d3ikea_4096(partition='train', num_points=args.num_points), num_workers=8,
                               batch_size=args.batch_size, shuffle=True, drop_last=True)
-    test_loader = DataLoader(nyu2_4096(partition='test', num_points=args.num_points), num_workers=8,
+    test_loader = DataLoader(d3ikea_4096(partition='test', num_points=args.num_points), num_workers=8,
                              batch_size=args.test_batch_size, shuffle=True, drop_last=True)
 
     device = torch.device("cuda:0" if args.cuda else "cpu")
@@ -41,9 +46,10 @@ def train(args, io):
 
     #Try to load models
     if args.model == 'pointnet':
-        model = PointNet(args,6).to(1)
+        model = PointNet(args,6).to(device)
     elif args.model == 'dgcnn':
-        model = DGCNN(args, 22).cuda()                                   ###################################   change the cls number
+        #model = DGCNN(args, 22).cuda()
+        model = DGCNN(args, 6).cuda()###################################   change the cls number
     else:
         raise Exception("Not implemented")
     print(str(model))
@@ -99,7 +105,6 @@ def train(args, io):
                                                                                  metrics.balanced_accuracy_score(
                                                                                      train_true, train_pred))
         io.cprint(outstr)
-
         ####################
         # Test
         ####################
@@ -134,15 +139,12 @@ def train(args, io):
 
 
 def mytest(args, io):
-    test_loader = DataLoader(nyu2_4096(partition='test', num_points=args.num_points),
-                             batch_size=args.test_batch_size, shuffle=False, drop_last=True)
+    test_loader = DataLoader(d3ikea_4096(partition='test', num_points=args.num_points),
+                             batch_size=args.test_batch_size, shuffle=True, drop_last=True)
 
     device = torch.device("cuda" if args.cuda else "cpu")
-
     #Try to load models
-
     #model = DGCNN(args, 6).to(device)
-
     #Try to load models
     if args.model == 'pointnet':
         model = PointNet(args, 6).to(device)
@@ -151,60 +153,54 @@ def mytest(args, io):
     else:
         raise Exception("Not implemented")
     print(str(model))
-
-
-
-
-
-
-
-
-
-
-
-    model = nn.DataParallel(model)
+    model = nn.DataParallel(model, device_ids=[0,1])
     model_path = '/data4/zb/model/model_nyu2_4096/model_6cls_pointnet.t7'
     model.load_state_dict(torch.load(model_path))
     model = model.eval()
-    test_acc = 0.0
-    count = 0.0
-    test_true = []
-    test_pred = []
-    voxel_fea_all = []
-    ground_truth = []
-    voxel_num_list = []
-    frame_pred = []
-    pred_list = []
-    log_list = []
-    for data, label in test_loader:
 
-        data, label = data.to(device), label.to(device).squeeze()
-        data = data.permute(0, 2, 1)
-        batch_size = data.size()[0]
-        logits = model(data)
-        preds = logits.max(dim=1)[1]
-        test_true.append(label.cpu().numpy())
-        test_pred.append(preds.detach().cpu().numpy())
+    for epoch in range(args.epochs):
 
-        ground_truth.append(label.cpu().numpy())
-        pred_list.append(preds.cpu().numpy())
-        log_list.append(logits.detach().cpu().numpy())
+        test_acc = 0.0
+        count = 0.0
+        test_true = []
+        test_pred = []
+        voxel_fea_all = []
+        ground_truth = []
+        voxel_num_list = []
+        frame_pred = []
+        pred_list = []
+        log_list = []
+        criterion = cal_loss
+        for data, label in test_loader:
 
-    test_true = np.concatenate(test_true)
-    test_pred = np.concatenate(test_pred)
+            data, label = data.cuda(), label.cuda()#.squeeze()
+            data = data.permute(0, 2, 1)
+            batch_size = data.size()[0]
+            logits = model(data)
+            loss = criterion(logits, label)
+            preds = logits.max(dim=1)[1]
+            test_true.append(label.cpu().numpy())
+            test_pred.append(preds.detach().cpu().numpy())
+            ground_truth.append(label.cpu().numpy())
+            pred_list.append(preds.cpu().numpy())
+            log_list.append(logits.detach().cpu().numpy())
 
-    ground_truth = np.concatenate(ground_truth)
-    pred_list = np.concatenate(pred_list)
-    log_list = np.concatenate(log_list)
-    np.savetxt('/data4/zb/fxm_dgcnn_data/cls_check/nyu2_1449_4096/dgcnn_pred_list.log', pred_list)  ####################
-    np.savetxt('/data4/zb/fxm_dgcnn_data/cls_check/nyu2_1449_4096/dgcnn_ground_truth.log',ground_truth)  #####################
-    np.savetxt('/data4/zb/fxm_dgcnn_data/cls_check/nyu2_1449_4096/dgcnn_logits.log', log_list)
+        test_true = np.concatenate(test_true)
+        test_pred = np.concatenate(test_pred)
+
+        ground_truth = np.concatenate(ground_truth)
+        pred_list = np.concatenate(pred_list)
+        log_list = np.concatenate(log_list)
+        np.savetxt('/data4/zb/fxm_dgcnn_data/cls_check/nyu2_1449_4096/dgcnn_pred_list.log', pred_list)  ####################
+        np.savetxt('/data4/zb/fxm_dgcnn_data/cls_check/nyu2_1449_4096/dgcnn_ground_truth.log',ground_truth)  #####################
+        np.savetxt('/data4/zb/fxm_dgcnn_data/cls_check/nyu2_1449_4096/dgcnn_logits.log', log_list)
 
 
-    test_acc = metrics.accuracy_score(test_true, test_pred)
-    avg_per_class_acc = metrics.balanced_accuracy_score(test_true, test_pred)
-    outstr = 'Test :: test acc: %.6f, test avg acc: %.6f'%(test_acc, avg_per_class_acc)
-    io.cprint(outstr)
+        test_acc = metrics.accuracy_score(test_true, test_pred)
+        avg_per_class_acc = metrics.balanced_accuracy_score(test_true, test_pred)
+        outstr = 'Test :: test acc: %.6f, test avg acc: %.6f'%(test_acc, avg_per_class_acc)
+        io.cprint(outstr)
+
 
 
 if __name__ == "__main__":
@@ -212,14 +208,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Point Cloud Recognition')
     parser.add_argument('--exp_name', type=str, default='exp', metavar='N',
                         help='Name of the experiment')
-    parser.add_argument('--model', type=str, default='dgcnn', metavar='N',                 ############################################
+    parser.add_argument('--model', type=str, default='pointnet', metavar='N',                 ############################################
                         choices=['pointnet', 'dgcnn'],
                         help='Model to use, [pointnet, dgcnn]')
     parser.add_argument('--dataset', type=str, default='sun_4096', metavar='N'
                         )
-    parser.add_argument('--batch_size', type=int, default=16, metavar='batch_size',
+    parser.add_argument('--batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')  ## 原３２，超显存了
-    parser.add_argument('--test_batch_size', type=int, default=16, metavar='batch_size',
+    parser.add_argument('--test_batch_size', type=int, default=4, metavar='batch_size',
                         help='Size of batch)')  ##  原１６
     parser.add_argument('--epochs', type=int, default=250, metavar='N',
                         help='number of episode to train ')
@@ -239,16 +235,19 @@ if __name__ == "__main__":
                         help='num of points to use')
     parser.add_argument('--dropout', type=float, default=0.5,
                         help='dropout rate')
-    parser.add_argument('--emb_dims', type=int, default=2048, metavar='N',
+    parser.add_argument('--emb_dims', type=int, default=2048, metavar='N',   #default=2048
                         help='Dimension of embeddings')
     parser.add_argument('--k', type=int, default=20, metavar='N',
                         help='Num of nearest neighbors to use')
     parser.add_argument('--model_path', type=str, default='', metavar='N',
                         help='Pretrained model path')
     args = parser.parse_args()
+
     _init_()
+
     io = IOStream('/home/zb/fxm_voxel_dgcnn/result/tmp.log')
     io.cprint(str(args))
+
     args.cuda = not args.no_cuda and torch.cuda.is_available()
     torch.manual_seed(args.seed)
     if args.cuda:
@@ -262,5 +261,5 @@ if __name__ == "__main__":
     #     train(args, io)
     # else:
     #     mytest(args, io)
-    train(args, io)
+    #train(args, io)
     mytest(args, io)

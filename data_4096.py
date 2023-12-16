@@ -60,6 +60,18 @@ def load_nyu2_4096(mode):
     return data, label
 
 
+def load_ik3d_4096(mode):
+    """
+    read the downsample labeled nyu2 data. point nums are 4096
+    """
+    path="/data4/zb/fxm_dgcnn_data/3D_IKEA/3DIKEA_dsp_4096_%s"%(mode)
+    #path = '/data4/zb/fxm_dgcnn_data/nyu2_1449_seq/4096_%s.h5'%(mode)
+    f = h5py.File(path, 'r')
+    data = f['data'][:].astype('float32')
+    label = f['label'][:].astype('int64')
+    return data, label
+
+
 
 class ModelNet40(Dataset):
     def __init__(self, num_points, partition='train'):
@@ -93,6 +105,29 @@ class nyu2_4096(Dataset):   ## train has 918 files, test has 227 file
     def __len__(self):
         #print(self.data.shape[0])
         return self.data.shape[0]
+
+
+
+class d3ikea_4096(Dataset):   ## train has 918 files, test has 227 file
+    def __init__(self, num_points, partition='train'):
+        self.data, self.label = load_ik3d_4096(partition)
+        self.num_points = num_points
+        self.partition = partition
+
+    def __getitem__(self, item):   #fxm: 表示取第几个样例，item means index of sample
+        pointcloud = self.data[item][:self.num_points]
+        label = self.label[item]
+        return pointcloud, label
+
+    def __len__(self):
+        #print(self.data.shape[0])
+        return self.data.shape[0]
+
+
+
+
+
+
 
 
 

@@ -108,7 +108,7 @@ def get_graph_feature_nozero(x, k=10, idx=None):
 
     return feature
 
-def positional_adding(x, voxel_sequence, cloud_len_list, d_model=760, max_len=759):
+def positional_adding(x, voxel_sequence, cloud_len_list, d_model=748, max_len=748):
     """
     function: add the voxel sequence values to every elements of voxel features.
     Note: d_model(voxel_dim) must be a even number  ; x size:[b, seq_len, voxel_dim] is same with output new_x
@@ -291,7 +291,7 @@ class DGCNN_voxel_reshape(nn.Module):
         #self.bn4 = nn.BatchNorm2d(128)
         self.bn5 = nn.BatchNorm1d(args.emb_dims)
 
-        self.conv1 = nn.Sequential(nn.Conv2d(6, 32, kernel_size=1, bias=False),
+        self.conv1 = nn.Sequential(nn.Conv2d(18, 32, kernel_size=1, bias=False),
                                    #self.bn1,
                                    nn.LeakyReLU(negative_slope=0.2))
         self.conv2 = nn.Sequential(nn.Conv2d(32*2, 32, kernel_size=1, bias=False),
@@ -320,7 +320,7 @@ class DGCNN_voxel_reshape(nn.Module):
             nn.Linear(args.voxel_cls, args.voxel_cls),
             nn.LeakyReLU(negative_slope=0.2),
             nn.Dropout(p=args.dropout),
-            nn.Linear(args.voxel_cls, 18)
+            nn.Linear(args.voxel_cls, output_channels)
         )
 
 
@@ -335,7 +335,7 @@ class DGCNN_voxel_reshape(nn.Module):
         #     accout += cloud_len_list[i]
         # del input
         ######
-        x = input.view(-1, self.point_num, 3)
+        x = input.view(-1, self.point_num, 9)
         x = x.permute(0, 2, 1)
         batch_size = x.size(0)                 ## x维度[b,x,n]  b_s = 16 x 169
         x = get_graph_feature_nozero(x, k=self.k)     ## 维度是[b,2*3,n,k]
