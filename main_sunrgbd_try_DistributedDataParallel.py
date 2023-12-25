@@ -6,7 +6,7 @@
 
 from __future__ import print_function
 import os
-os.environ['CUDA_VISIBLE_DEVICES']='4,2,5,7,6'
+os.environ['CUDA_VISIBLE_DEVICES']='2,3,5,6,7'
 import argparse
 import torch
 import torch.nn as nn
@@ -21,6 +21,7 @@ from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
 import sklearn.metrics as metrics
 import time
+import torch.distributed as dist
 import h5py
 
 
@@ -31,22 +32,28 @@ def _init_():
         os.makedirs('./model/sunrgbd__try/model_n0_knn_voxel_sequence_vcls759')
 
 def train(args, io):
-    #os.environ['CUDA_VISIBLE_DEVICES'] = "1, 2,3,4,5,6,7"  ##########################   更换主显卡
-    print(1)
-    train_loader=DataLoader(sunrgbd_9cls_voxel_multi('train'), num_workers=8,
-                             batch_size=args.batch_size, shuffle=True, drop_last=True)
-    device = torch.device("cuda:{}".format(0))
+    dist.init_process_group(backend="nccl")
+    torch.cuda.set_device(int(os.environ['LOCAL_RANK']))
+    train_sampler = torch.utils.data.distributed.DistributedSampler(sunrgbd_9cls_voxel_multi('train'))
+    train_loader = torch.utils.data.DataLoader(
+        sunrgbd_9cls_voxel_multi('train'),
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.num_workers,
+        pin_memory=False,
+        sampler=train_sampler)
+
+
+
     dim_1=train_loader.dataset.data_02.shape[1]
     dim_2= train_loader.dataset.data_04.shape[1]
     dim_3 = train_loader.dataset.data_08.shape[1]
     point_num1=train_loader.dataset.data_02.shape[2]
     point_num2=train_loader.dataset.data_04.shape[2]
     point_num3=train_loader.dataset.data_08.shape[2]
-
-
     #Try to load models
     if args.model == 'pointnet':
-        model = DGCNN_voxel_reshape(args).to(device)
+        model = DGCNN_voxel_reshape(args)
     elif args.model == 'dgcnn':
         #model = DGCNN_voxel_reshape(args, output_channels=18).to(device)      #####################################################
         model = DGCNN_voxel_reshape(
@@ -63,35 +70,13 @@ def train(args, io):
             dim_head=64,
             dropout=0.5,  ### for tranformer
             emb_dropout=0.1  ### for embedding
-        ).to(device)
+        )
     else:
         raise Exception("Not implemented")
-    #print(str(model))
 
-    # if args.model == 'pointnet':
-    #     model = DGCNN_voxel_reshape(args).to(device)
-    # elif args.model == 'dgcnn':
-    #     #model = DGCNN_voxel_reshape(args, output_channels=18).to(device)      #####################################################
-    #     model = DGCNN_voxel_reshape(args,output_channels=9).to(device)
-    # else:
-    #     raise Exception("Not implemented")
-    # print(str(model))
-
-
-
-    model = torch.nn.DataParallel(model, device_ids=[0,1,2,3])
-    print("Let's use", torch.cuda.device_count(), "GPUs!")
-    # ##############   加载预训练的voxel dgcnn
-    # model_dict = model.state_dict()
-    # pretrain_voxel_dgcnn = torch.load(
-    #     '/data4/zb/model/3D_IKEA/pretrain_for_voxel_dgcnn_by_IKEA_6cls_vfh_cluster_label356/model_pretrain_for_voxel356_vfh_nomean_198.t7')
-    # pretrainning = {k: v for k, v in pretrain_voxel_dgcnn.items() if k in model_dict}
-    # model_dict.update(pretrainning)
-    # model.load_state_dict(model_dict)
-    # ##############
-
-
-
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[args.local_rank], output_device=args.local_rank,
+                                                      find_unused_parameters=True)  # 这句加载到多GPU上
+    model.to(device)  # 这句不能少，最好不要用model.cuda()
     if args.use_sgd:
         print("Use SGD")
         opt = optim.SGD(model.parameters(), lr=args.lr*100, momentum=args.momentum, weight_decay=1e-4)
@@ -113,23 +98,10 @@ def train(args, io):
                           ])
 
 
-    # if args.use_sgd:
-    #     print("Use SGD")
-    #     opt = optim.SGD(model.parameters(), lr=args.lr*100, momentum=args.momentum, weight_decay=1e-4)
-    # else:
-    #     print("Use Adam")
-    #     opt = optim.Adam(model.parameters(), lr=args.lr, weight_decay=1e-4)
 
-    #scheduler = CosineAnnealingLR(opt, args.epochs, eta_min=args.lr)
     scheduler_steplr = StepLR(opt, step_size= 10, gamma= 0.8)
     criterion = cal_loss
 
-    ###########################  for prosessing interprut
-    # for pre_epoch in range(34):
-    #     scheduler_steplr.step()
-    # model_path = './model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_transformer/model_n0_knn_voxel_sequence_vcls760/model_transformer_33.t7'
-    # model.load_state_dict(torch.load(model_path))
-    ###############################
 
     best_test_acc = 0
     for epoch in range(args.epochs):
@@ -151,9 +123,9 @@ def train(args, io):
             data_arr_02 = torch.FloatTensor(data_02).to(device)
             data_arr_04 = torch.FloatTensor(data_04).to(device)
             data_arr_08 = torch.FloatTensor(data_08).to(device)
-            cloud_len_list = torch.LongTensor(cloud_len_list).cuda()
-            voxel_sequence=torch.LongTensor(voxel_sequence).cuda()
-            voxel_point_number=torch.LongTensor(voxel_point_number).cuda()
+            cloud_len_list = torch.LongTensor(cloud_len_list).to(device)
+            voxel_sequence=torch.LongTensor(voxel_sequence).to(device)
+            voxel_point_number=torch.LongTensor(voxel_point_number).to(device)
             # data = data.permute(0, 2, 1)    # trans to [b,3,n]
             #voxel_sequence = torch.LongTensor(voxel_sequence).cuda()
             batch_size = args.batch_size
@@ -182,8 +154,8 @@ def train(args, io):
                                                                                  metrics.balanced_accuracy_score(
                                                                                      train_true[batch_size:], train_pred[batch_size:]))
         io.cprint(outstr)
-        torch.save(model.state_dict(), './model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin/model_n0_knn_voxel_sequence_vcls759/model_nobn_9feature_novxlpad_%s.t7'%(epoch))
-
+        #torch.save(model.state_dict(), './model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin/model_n0_knn_voxel_sequence_vcls759/model_nobn_9feature_novxlpad_%s.t7'%(epoch))
+        torch.save(model.modelstate_dict(), './model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin/model_n0_knn_voxel_sequence_vcls759/model_nobn_9feature_novxlpad_%s.t7'%(epoch))
 
 
 
@@ -219,7 +191,7 @@ def a_test(args, io):
     ).to(device)
 
 
-    model = torch.nn.DataParallel(model, device_ids=[0,1,2,3,4])
+    model = torch.nn.DataParallel(model, device_ids=[0,1])
 
     for iii in range(100,199,1):   #### test the last 50 models
         print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
@@ -311,6 +283,13 @@ if __name__ == "__main__":
                         help='dropout rate')
     parser.add_argument('--emb_dims', type=int, default=512, metavar='N',      ####################
                         help='Dimension of embeddings')
+    parser.add_argument("--local_rank", type=int, default=1,
+                        help="number of cpu threads to use during batch generation")
+
+    parser.add_argument('--use_mix_precision', default=False,                        #
+                        action='store_true', help="whether to use mix precision")
+
+    #################################
     parser.add_argument('--voxel_cls', type=int, default=749, metavar='N',     ##################
                         help='classification of voxels')
     parser.add_argument('--model_path', type=str,\
@@ -337,5 +316,5 @@ if __name__ == "__main__":
     #     train(args, io)
     # else:
     #     a_test(args, io)
-    #train(args, io)
+    train(args, io)
     a_test(args, io)

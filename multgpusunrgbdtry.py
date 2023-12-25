@@ -6,7 +6,7 @@
 
 from __future__ import print_function
 import os
-os.environ['CUDA_VISIBLE_DEVICES']='4,2,5,7,6'
+os.environ['CUDA_VISIBLE_DEVICES']='2,5,4,3'
 import argparse
 import torch
 import torch.nn as nn
@@ -21,8 +21,8 @@ from torch.utils.data import DataLoader
 from util import cal_loss, IOStream
 import sklearn.metrics as metrics
 import time
+from torch import distributed as dist
 import h5py
-
 
 def _init_():
     if not os.path.exists('./model/sunrgbd__try'):
@@ -31,8 +31,10 @@ def _init_():
         os.makedirs('./model/sunrgbd__try/model_n0_knn_voxel_sequence_vcls759')
 
 def train(args, io):
-    #os.environ['CUDA_VISIBLE_DEVICES'] = "1, 2,3,4,5,6,7"  ##########################   更换主显卡
-    print(1)
+    print(torch.cuda.device_count())  # 打印gpu数量
+    torch.distributed.init_process_group(backend="nccl")  # 并行训练初始化，建议'nccl'模式
+    print('world_size', torch.distributed.get_world_size())  # 打印当前进程数
+    torch.cuda.set_device(args.local_rank)
     train_loader=DataLoader(sunrgbd_9cls_voxel_multi('train'), num_workers=8,
                              batch_size=args.batch_size, shuffle=True, drop_last=True)
     device = torch.device("cuda:{}".format(0))
@@ -66,30 +68,14 @@ def train(args, io):
         ).to(device)
     else:
         raise Exception("Not implemented")
-    #print(str(model))
 
-    # if args.model == 'pointnet':
-    #     model = DGCNN_voxel_reshape(args).to(device)
-    # elif args.model == 'dgcnn':
-    #     #model = DGCNN_voxel_reshape(args, output_channels=18).to(device)      #####################################################
-    #     model = DGCNN_voxel_reshape(args,output_channels=9).to(device)
-    # else:
-    #     raise Exception("Not implemented")
-    # print(str(model))
-
-
-
-    model = torch.nn.DataParallel(model, device_ids=[0,1,2,3])
-    print("Let's use", torch.cuda.device_count(), "GPUs!")
-    # ##############   加载预训练的voxel dgcnn
-    # model_dict = model.state_dict()
-    # pretrain_voxel_dgcnn = torch.load(
-    #     '/data4/zb/model/3D_IKEA/pretrain_for_voxel_dgcnn_by_IKEA_6cls_vfh_cluster_label356/model_pretrain_for_voxel356_vfh_nomean_198.t7')
-    # pretrainning = {k: v for k, v in pretrain_voxel_dgcnn.items() if k in model_dict}
-    # model_dict.update(pretrainning)
-    # model.load_state_dict(model_dict)
-    # ##############
-
+    model = model.cuda(args.local_rank)  # 将模型拷贝到每个gpu上.直接.cuda()也行，因为多进程时每个进程的device号是不一样的
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)  # 设置多个gpu的BN同步
+    model = torch.nn.parallel.DistributedDataParallel(model,
+                                                         device_ids=[args.local_rank],
+                                                         output_device=args.local_rank,
+                                                         find_unused_parameters=False,
+                                                         broadcast_buffers=False)
 
 
     if args.use_sgd:
@@ -219,7 +205,7 @@ def a_test(args, io):
     ).to(device)
 
 
-    model = torch.nn.DataParallel(model, device_ids=[0,1,2,3,4])
+    model = torch.nn.DataParallel(model, device_ids=[0,1,2,3])
 
     for iii in range(100,199,1):   #### test the last 50 models
         print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
@@ -283,7 +269,7 @@ if __name__ == "__main__":
                         )
     parser.add_argument('--batch_size', type=int, default=8, metavar='batch_size',
                         help='Size of batch)')                       ## 原３２，超显存了
-    parser.add_argument('--test_batch_size', type=int, default=2, metavar='batch_size',
+    parser.add_argument('--test_batch_size', type=int, default=3, metavar='batch_size',
                         help='Size of batch)')                           ##  原１６
     parser.add_argument('--epochs', type=int, default=200, metavar='N',
                         help='number of episode to train ')
@@ -313,6 +299,7 @@ if __name__ == "__main__":
                         help='Dimension of embeddings')
     parser.add_argument('--voxel_cls', type=int, default=749, metavar='N',     ##################
                         help='classification of voxels')
+    parser.add_argument('--local_rank', default=-1, type=int)
     parser.add_argument('--model_path', type=str,\
                         default='./model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_enbed/model_n0_knn_voxel_sequence_vcls759/model_enbed_dim3_150~199.t7',\
                         metavar='N',

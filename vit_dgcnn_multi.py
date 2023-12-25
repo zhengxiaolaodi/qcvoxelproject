@@ -344,8 +344,7 @@ class DGCNN_voxel_reshape(nn.Module):
         voxel_seq_list = [voxel_sequence_1, voxel_sequence_2, voxel_sequence_3]
         voxel_point_number_1 = voxel_point_number[:, 0:x1.shape[1]]
         voxel_point_number_2 = voxel_point_number[:, x1.shape[1]:(x1.shape[1] + x2.shape[1])]
-        voxel_point_number_3 = voxel_point_number[:,
-        (x1.shape[1] + x2.shape[1]):(x1.shape[1] + x2.shape[1] + x3.shape[1])]
+        voxel_point_number_3 = voxel_point_number[:,(x1.shape[1] + x2.shape[1]):(x1.shape[1] + x2.shape[1] + x3.shape[1])]
         voxel_point_number_list = [voxel_point_number_1, voxel_point_number_2, voxel_point_number_3]
         #################################################
         input = x_list[0]

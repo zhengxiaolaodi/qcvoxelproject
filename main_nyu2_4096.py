@@ -9,7 +9,7 @@
 
 from __future__ import print_function
 import os
-os.environ['CUDA_VISIBLE_DEVICES']='5,0'
+os.environ['CUDA_VISIBLE_DEVICES']='1,6'
 import argparse
 import torch
 import torch.nn as nn

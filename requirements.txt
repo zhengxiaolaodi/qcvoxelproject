@@ -1,6 +1,62 @@
-torch~=1.9.0+cu111
-einops~=0.3.2
-numpy~=1.20.1
-h5py~=3.1.0
-scikit-learn~=0.24.1
-gensim~=4.1.0
+def train(gpu, args):
+    ########################################    N1    ####################################################################
+    dist.init_process_group(backend='nccl', init_method=args.init_method, rank=args.rank, world_size=args.world_size)    #
+    ######################################################################################################################
+    model = ConvNet()
+    model.cuda(gpu)
+    # define loss function (criterion) and optimizer
+    criterion = nn.CrossEntropyLoss().to(gpu)
+    optimizer = torch.optim.SGD(model.parameters(), 1e-4)
+    # Wrap the model
+    #######################################    N2    ########################
+    model = nn.SyncBatchNorm.convert_sync_batchnorm(model)                  #
+    model = nn.parallel.DistributedDataParallel(model, device_ids=[gpu])    #
+    scaler = GradScaler(enabled=args.use_mix_precision)                   #
+    #########################################################################
+    # Data loading code
+    train_dataset = torchvision.datasets.MNIST(root='./data',
+                                               train=True,
+                                               transform=transforms.ToTensor(),
+                                               download=True)
+    ####################################    N3    #######################################
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset)      #
+    train_loader = torch.utils.data.DataLoader(dataset=train_dataset,                   #
+                                               batch_size=args.batch_size,              #
+                                               shuffle=False,                           #
+                                               num_workers=0,                           #
+                                               pin_memory=True,                         #
+                                               sampler=train_sampler)                   #
+    #####################################################################################
+    start = datetime.now()
+    total_step = len(train_loader) # The number changes to orignal_length // args.world_size
+    for epoch in range(args.epochs):
+        ################    N4    ################
+        train_loader.sampler.set_epoch(epoch)    #
+        ##########################################
+        model.train()
+        for i, (images, labels) in enumerate(tqdm(train_loader)):
+            images = images.to(gpu)
+            labels = labels.to(gpu)
+            # Forward pass
+            ########################    N5    ################################
+            with torch.cuda.amp.autocast(enabled=args.use_mix_precision):    #
+                outputs = model(images)                                      #
+                loss = criterion(outputs, labels)                            #
+            ##################################################################
+            # Backward and optimize
+            optimizer.zero_grad()
+            ##############    N6    ##########
+            scaler.scale(loss).backward()    #
+            scaler.step(optimizer)           #
+            scaler.update()                  #
+            ##################################
+            ################    N7    ####################
+            if (i + 1) % 100 == 0 and args.rank == 0:    #
+            ##############################################
+                print('Epoch [{}/{}], Step [{}/{}], Loss: {:.4f}'.format(epoch + 1, args.epochs, i + 1, total_step,
+                                                                   loss.item()))
+    ############    N8    ###########
+    dist.destroy_process_group()    #
+    if args.rank == 0:              #
+    #################################
+        print("Training complete in: " + str(datetime.now() - start))
