@@ -66,11 +66,94 @@ class sunrgbd_9cls_voxel_multi(Dataset):#这是提取数据的一个类
         return len(self.data_02)
 
 
+def load_data_3dikea(mode):
+    #"/data4/zb/fxm_dgcnn_data/3D_IKEA/3DIKEA_6cls_voxel_356_seq_02_test"
+    path = "/data4/zb/fxm_dgcnn_data/3D_IKEA/"
+    f = h5py.File(path + '3DIKEA_6cls_voxel_356_seq_%s' % (mode), 'r')
+    data = f['data'][:].astype('float32')
+    label = f['label'][:].astype('int64')
+    voxel_num = f['voxel_num'][:].astype('int64')  ###astype修改数据类型
+    voxel_sequence = f['voxel_sequence'][:].astype('int64')
+    f.close()
+    return data, label,voxel_num,voxel_sequence
+
+
+
+
+class ikea3d_data(Dataset):#这是提取数据的一个类
+    def __init__(self, partition):
+        self.data, self.label,self.voxel_num,self.voxel_sequence = load_data_3dikea(partition)
+        self.partition = partition
+    def __getitem__(self, item):   #fxm: 表示取第几个样例，item means index of sample
+        data_item = self.data[item]
+        label = self.label[item]
+        cloud_len_list = self.voxel_num[item]
+        voxel_sequence = self.voxel_sequence[item]
+        return data_item, label, cloud_len_list, voxel_sequence
+    def __len__(self):
+        return len(self.data)
 
 
 
 
 
+
+###########################################
+def load_data_sunrgbd_mult_9feature(mode):
+    #"/data4/zb/fxm_dgcnn_data/3D_IKEA/3DIKEA_6cls_voxel_356_seq_02_test"
+    path = "/data4/zb/fxm_dgcnn_data/3D_IKEA/"
+    f = h5py.File(path + '3DIKEA_6cls_voxel_356_seq_02_9fea_%s' % (mode), 'r')
+    data_02 = f['data'][:].astype('float32')
+    label = f['label'][:].astype('int64')
+    voxel_num_02 = f['voxel_num'][:].astype('int64')  ###astype修改数据类型
+    voxel_sequence_02 = f['voxel_sequence'][:].astype('int64')
+    voxel_sequence_pointnum_02 = f['voxel_point_number'][:].astype('int64')
+    f.close()
+    print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
+    path = "/data4/zb/fxm_dgcnn_data/3D_IKEA/"
+    f = h5py.File(path + '3DIKEA_6cls_voxel_356_seq_04_9fea_%s' % (mode), 'r')
+    data_04 = f['data'][:].astype('float32')
+    voxel_num_04 = f['voxel_num'][:].astype('int64')  ###astype修改数据类型
+    voxel_sequence_04 = f['voxel_sequence'][:].astype('int64')
+    voxel_sequence_04=voxel_sequence_04.reshape([voxel_sequence_04.shape[0],voxel_sequence_04.shape[1]])
+    voxel_sequence_pointnum_04 = f['voxel_point_number'][:].astype('int64')
+    f.close()
+    print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
+    path = "/data4/zb/fxm_dgcnn_data/3D_IKEA/"
+    f = h5py.File(path + '3DIKEA_6cls_voxel_356_seq_08_9fea_%s' % (mode), 'r')
+    data_08 = f['data'][:].astype('float32')
+    voxel_num_08 = f['voxel_num'][:].astype('int64')  ###astype修改数据类型
+    voxel_sequence_08 = f['voxel_sequence'][:].astype('int64')
+    voxel_sequence_08 = voxel_sequence_08.reshape([voxel_sequence_08.shape[0], voxel_sequence_08.shape[1]])
+    voxel_sequence_pointnum_08 = f['voxel_point_number'][:].astype('int64')
+    f.close()
+    print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
+    voxel_num_result=np.concatenate((voxel_num_02,voxel_num_04,voxel_num_08),axis=-1)
+    voxel_sequence_result=np.concatenate((voxel_sequence_02,voxel_sequence_04,voxel_sequence_08),axis=-1)
+    voxel_pointnum_result=np.concatenate((voxel_sequence_pointnum_02,voxel_sequence_pointnum_04,voxel_sequence_pointnum_08),axis=-1)
+    return data_02, data_04, data_08,label,voxel_num_result,voxel_sequence_result,voxel_pointnum_result
+
+
+
+
+class sunrgbd_3cls_voxel_multi(Dataset):#这是提取数据的一个类
+    def __init__(self, partition):
+        self.data_02, self.data_04, self.data_08,self.label,self.voxel_num_result,self.voxel_sequence_result,self.voxel_pointnum_result = load_data_sunrgbd_multi(partition)
+        self.partition = partition
+    def __getitem__(self, item):   #fxm: 表示取第几个样例，item means index of sample
+        data_02_item = self.data_02[item]
+        data_04_item = self.data_04[item]
+        data_08_item = self.data_08[item]
+        label = self.label[item]
+        cloud_len_list = self.voxel_num_result[item]
+        voxel_sequence = self.voxel_sequence_result[item]
+        voxel_pointnum_result=self.voxel_pointnum_result[item]
+        return data_02_item,data_04_item,data_08_item, label, cloud_len_list, voxel_sequence,voxel_pointnum_result
+    def __len__(self):
+        return len(self.data_02)
+
+
+###########################################
 
 
 def load_data(mode):
