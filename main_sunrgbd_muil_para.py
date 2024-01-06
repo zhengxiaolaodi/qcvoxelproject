@@ -6,15 +6,15 @@
 
 from __future__ import print_function
 import os
-os.environ['CUDA_VISIBLE_DEVICES']='1,5,6,7'
+os.environ['CUDA_VISIBLE_DEVICES']='7,6,4,1'
 import argparse
 import torch
 import torch.nn as nn
 import torch.nn.functional as Farr
 import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR, StepLR
-from data_voxel_reshape import nyu2_18cls_voxel_dsp220
-from vit import DGCNN_voxel_reshape
+from data_voxel_reshape import sunrgbd_mulit_para
+from vit_dgcnn_multi import DGCNN_voxel_reshape
 #from vit_multipara import DGCNN_voxel_reshape
 import numpy as np
 from torch.utils.data import DataLoader
@@ -33,10 +33,15 @@ def _init_():
 def train(args, io):
     #os.environ['CUDA_VISIBLE_DEVICES'] = "1, 2,3,4,5,6,7"  ##########################   更换主显卡
     print(1)
-    train_loader=DataLoader(nyu2_18cls_voxel_dsp220('train'), num_workers=8,
+    train_loader=DataLoader(sunrgbd_mulit_para('train'), num_workers=8,
                              batch_size=args.batch_size, shuffle=True, drop_last=True)
     device = torch.device("cuda:{}".format(0))
-
+    dim_1=train_loader.dataset.data_02.shape[1]
+    dim_2= train_loader.dataset.data_04.shape[1]
+    dim_3 = train_loader.dataset.data_08.shape[1]
+    point_num1=train_loader.dataset.data_02.shape[2]
+    point_num2=train_loader.dataset.data_04.shape[2]
+    point_num3=train_loader.dataset.data_08.shape[2]
 
 
     #Try to load models
@@ -45,8 +50,13 @@ def train(args, io):
     elif args.model == 'dgcnn':
         #model = DGCNN_voxel_reshape(args, output_channels=18).to(device)      #####################################################
         model = DGCNN_voxel_reshape(
-            num_classes=18,
-            dim=748,#####################################
+            num_classes=9,                                                                #####################################
+            dim1 = dim_1,
+            dim2=dim_2,
+            dim3=dim_3,
+            point_num1=point_num1,
+            point_num2=point_num2,
+            point_num3=point_num3,
             depth=6,
             heads=16,
             mlp_dim=1024,
@@ -88,11 +98,18 @@ def train(args, io):
     else:
         print("Use Adam")
         ### model.module name: cls_token, voxel_embedding, transformer, classifer
-        opt = optim.Adam([{'params': model.module.cls_token, 'lr': args.lr, 'weight_decay': 1e-4},
-                          {'params': model.module.voxel_embedding.parameters(), 'lr': args.lr*0.01, 'weight_decay':1e-4},    ######################
-                          {'params': model.module.transformer.parameters(), 'lr': args.lr, 'weight_decay': 1e-4},
+        opt = optim.Adam([{'params': model.module.cls_token1, 'lr': args.lr, 'weight_decay': 1e-4},
+                          {'params': model.module.voxel_embedding1.parameters(), 'lr': args.lr*0.01, 'weight_decay':1e-4},    ######################
+                          {'params': model.module.transformer1.parameters(), 'lr': args.lr, 'weight_decay': 1e-4},
                           {'params': model.module.classifier.parameters(), 'lr': args.lr, 'weight_decay': 1e-4},
-
+                          {'params': model.module.cls_token2, 'lr': args.lr, 'weight_decay': 1e-4},
+                          {'params': model.module.voxel_embedding2.parameters(), 'lr': args.lr * 0.01,'weight_decay': 1e-4},  ######################
+                          {'params': model.module.transformer2.parameters(), 'lr': args.lr, 'weight_decay': 1e-4},
+                          {'params': model.module.classifier2.parameters(), 'lr': args.lr, 'weight_decay': 1e-4},
+                          {'params': model.module.cls_token3, 'lr': args.lr, 'weight_decay': 1e-4},
+                          {'params': model.module.voxel_embedding3.parameters(), 'lr': args.lr * 0.01,'weight_decay': 1e-4},  ######################
+                          {'params': model.module.transformer3.parameters(), 'lr': args.lr, 'weight_decay': 1e-4},
+                          {'params': model.module.classifier3.parameters(), 'lr': args.lr, 'weight_decay': 1e-4}
                           ])
 
 
@@ -128,17 +145,23 @@ def train(args, io):
         model.train()   #对于一些含有BatchNorm，Dropout等层的模型，在训练时使用的forward和验证时使用的forward在计算上不太一样.需要设置
         train_pred = torch.zeros(args.batch_size)
         train_true = torch.zeros(args.batch_size)
-        for i, (data,label, cloud_len_list, voxel_sequence) in enumerate(train_loader):
+        for i, (data_02, data_04,data_08,label, cloud_len_list, voxel_sequence,voxel_point_number) in enumerate(train_loader):
             if i % 200 ==0:
                 print(i)
-            data_arr = torch.FloatTensor(data).to(device)
+            data_arr_02 = torch.FloatTensor(data_02).to(device)
+            data_arr_04 = torch.FloatTensor(data_04).to(device)
+            data_arr_08 = torch.FloatTensor(data_08).to(device)
+            data_arr_02 = torch.HalfTensor(data_arr_02).to(device)
+            data_arr_04 = torch.HalfTensor(data_arr_04).to(device)
+            data_arr_08 = torch.HalfTensor(data_arr_08).to(device)
             cloud_len_list = torch.LongTensor(cloud_len_list).cuda()
             voxel_sequence=torch.LongTensor(voxel_sequence).cuda()
+            voxel_point_number=torch.LongTensor(voxel_point_number).cuda()
             # data = data.permute(0, 2, 1)    # trans to [b,3,n]
             #voxel_sequence = torch.LongTensor(voxel_sequence).cuda()
             batch_size = args.batch_size
             opt.zero_grad()
-            logits,voxel_fea = model(data_arr, cloud_len_list, voxel_sequence)
+            logits,voxel_fea = model(data_arr_02,data_arr_04,data_arr_08, cloud_len_list, voxel_sequence,voxel_point_number)
             label = torch.LongTensor(label).to(device)
             loss = criterion(logits, label)
             loss.backward()
@@ -168,13 +191,28 @@ def train(args, io):
 
 
 def a_test(args, io):
-    test_loader = DataLoader(nyu2_18cls_voxel_dsp220('test'), num_workers=8,
+    test_loader = DataLoader(sunrgbd_mulit_para('test'), num_workers=8,
                              batch_size=args.test_batch_size, shuffle=True, drop_last=True)
+
     device = torch.device("cuda:{}".format(0) if torch.cuda.is_available() and not args.no_cuda else "cpu")
+    dim_1=test_loader.dataset.data_02.shape[1]
+    dim_2= test_loader.dataset.data_04.shape[1]
+    dim_3 = test_loader.dataset.data_08.shape[1]
+    point_num1=test_loader.dataset.data_02.shape[2]
+    point_num2=test_loader.dataset.data_04.shape[2]
+    point_num3=test_loader.dataset.data_08.shape[2]
+
+
     #Try to load models
+
     model = DGCNN_voxel_reshape(
-        num_classes=18,  #####################################
-        dim=748,
+        num_classes=9,  #####################################
+        dim1=dim_1,
+        dim2=dim_2,
+        dim3=dim_3,
+        point_num1=point_num1,
+        point_num2=point_num2,
+        point_num3=point_num3,
         depth=6,
         heads=16,
         mlp_dim=1024,
@@ -182,10 +220,13 @@ def a_test(args, io):
         dropout=0.5,  ### for tranformer
         emb_dropout=0.1
     ).to(device)
+
+
     model = torch.nn.DataParallel(model, device_ids=[0,1,2,3])
+
     for iii in range(100,199,1):   #### test the last 50 models
         print(time.strftime('%Y.%m.%d %H:%M:%S', time.localtime(time.time())))
-        model_path = './model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin/model_n0_knn_voxel_sequence_vcls759/model_nobn_3feature_novxlpad_%s.t7'%(iii)
+        model_path = './model/nyu2_crop_1.6_2_voxel0.2_downsmp_to220_thin/model_n0_knn_voxel_sequence_vcls759/model_nobn_9feature_novxlpad_%s.t7'%(iii)
         model.load_state_dict(torch.load(model_path))
         model = model.eval()
         test_acc = 0.0
@@ -196,13 +237,15 @@ def a_test(args, io):
         voxel_fea_all = []
         ground_truth = []
         voxel_num_list = []
-        for i, (data,label, cloud_len_list, voxel_sequence) in enumerate(test_loader):
-            data_arr = torch.FloatTensor(data).to(device)
+        for i, (data_02, data_04,data_08,label, cloud_len_list, voxel_sequence,voxel_point_number) in enumerate(test_loader):
+            data_arr_02 = torch.FloatTensor(data_02).to(device)
+            data_arr_04 = torch.FloatTensor(data_04).to(device)
+            data_arr_08 = torch.FloatTensor(data_08).to(device)
             cloud_len_list = torch.LongTensor(cloud_len_list).cuda()
             voxel_sequence=torch.LongTensor(voxel_sequence).cuda()
-            #voxel_point_number=torch.LongTensor(voxel_point_number).cuda()
+            voxel_point_number=torch.LongTensor(voxel_point_number).cuda()
             batch_size = args.test_batch_size
-            logits ,voxel_fea= model(data_arr, cloud_len_list, voxel_sequence)    ###############
+            logits ,voxel_fea= model(data_arr_02,data_arr_04,data_arr_08, cloud_len_list, voxel_sequence,voxel_point_number)    ###############
 
             label = torch.LongTensor(label).cuda()
             preds = logits.max(dim=1)[1]
@@ -297,5 +340,5 @@ if __name__ == "__main__":
     #     train(args, io)
     # else:
     #     a_test(args, io)
-    train(args, io)
+    #train(args, io)
     a_test(args, io)

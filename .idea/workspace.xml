@@ -2,11 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="4f8ea2a6-26cf-4567-834c-1d0e42b9029d" name="Changes" comment="">
-      <change afterPath="$PROJECT_DIR$/feature_add.py" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/main_ikea3_try.py" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/main_sunrgbd_muil_para.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/data_voxel_reshape.py" beforeDir="false" afterPath="$PROJECT_DIR$/data_voxel_reshape.py" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/main_sunrgbd_try.py" beforeDir="false" afterPath="$PROJECT_DIR$/main_sunrgbd_try.py" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/main_ikea3_try.py" beforeDir="false" afterPath="$PROJECT_DIR$/main_ikea3_try.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/vit.py" beforeDir="false" afterPath="$PROJECT_DIR$/vit.py" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
@@ -61,7 +60,7 @@
       <recent name="C:\Users\zhubo\Desktop\PycharmProject\fxm_voxel_dgcnn" />
     </key>
   </component>
-  <component name="RunManager" selected="Python.main_ikea3_try">
+  <component name="RunManager" selected="Python.main_sunrgbd_try">
     <configuration name="data_voxel_reshape" type="PythonConfigurationType" factoryName="Python" temporary="true" nameIsGenerated="true">
       <module name="fxm_voxel_dgcnn" />
       <option name="INTERPRETER_OPTIONS" value="" />
@@ -174,8 +173,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="Python.main_ikea3_try" />
         <item itemvalue="Python.main_sunrgbd_try" />
+        <item itemvalue="Python.main_ikea3_try" />
         <item itemvalue="Python.feature_add" />
         <item itemvalue="Python.data_voxel_reshape" />
         <item itemvalue="Python.vit_dgcnn_multi" />
@@ -206,7 +205,7 @@
       <workItem from="1700463255942" duration="3883000" />
       <workItem from="1700479998747" duration="2109000" />
       <workItem from="1700815723489" duration="60817000" />
-      <workItem from="1701485601592" duration="191029000" />
+      <workItem from="1701485601592" duration="204659000" />
     </task>
     <task id="LOCAL-00001" summary="1">
       <created>1702716489722</created>
@@ -229,7 +228,14 @@
       <option name="project" value="LOCAL" />
       <updated>1703493496433</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="1">
+      <created>1704284253245</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1704284253245</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -329,7 +335,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/data_voxel_reshape.py</url>
-          <line>46</line>
+          <line>106</line>
           <option name="timeStamp" value="190" />
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
@@ -344,7 +350,7 @@
         </line-breakpoint>
         <line-breakpoint enabled="true" suspend="THREAD" type="python-line">
           <url>file://$PROJECT_DIR$/data_voxel_reshape.py</url>
-          <line>133</line>
+          <line>193</line>
           <option name="timeStamp" value="199" />
         </line-breakpoint>
       </breakpoints>
@@ -373,7 +379,7 @@
     <SUITE FILE_PATH="coverage/main_sunrgbd_try_py$data_voxel_reshape.coverage" NAME="data_voxel_reshape Coverage Results" MODIFIED="1698628485219" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/fxm_voxel_dgcnn$model_nyu2_transformer.coverage" NAME="model_nyu2_transformer Coverage Results" MODIFIED="1690236978438" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/main_sunrgbd_try_py$main_3dikea_4096.coverage" NAME="main_3dikea_4096 Coverage Results" MODIFIED="1699185151384" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/data_voxel_reshape_py$main_sunrgbd_try.coverage" NAME="main_sunrgbd_try Coverage Results" MODIFIED="1704242830037" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/data_voxel_reshape_py$main_sunrgbd_try.coverage" NAME="main_sunrgbd_try Coverage Results" MODIFIED="1704531719249" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/fxm_voxel_dgcnn$main_transformer_classifier2__1_.coverage" NAME="main_transformer_classifier2 (1) Coverage Results" MODIFIED="1690515049230" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="D:/fxm/fxm_voxel_dgcnn" />
     <SUITE FILE_PATH="coverage/fxm_voxel_dgcnn$vit.coverage" NAME="vit Coverage Results" MODIFIED="1690594071494" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/data_voxel_reshape_py$vit_multipara.coverage" NAME="vit_multipara Coverage Results" MODIFIED="1700969854102" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
@@ -388,7 +394,7 @@
     <SUITE FILE_PATH="coverage/fxm_voxel_dgcnn$main_transformer.coverage" NAME="main_transformer Coverage Results" MODIFIED="1690516299785" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/fxm_voxel_dgcnn$model_nyu2_transformer_classifier2.coverage" NAME="model_nyu2_transformer_classifier2 Coverage Results" MODIFIED="1690453332314" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/data_voxel_reshape_py$main_nyu2_4096.coverage" NAME="main_nyu2_4096 Coverage Results" MODIFIED="1702795961796" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
-    <SUITE FILE_PATH="coverage/data_voxel_reshape_py$main_ikea3_try.coverage" NAME="main_ikea3_try Coverage Results" MODIFIED="1704283349658" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
+    <SUITE FILE_PATH="coverage/data_voxel_reshape_py$main_ikea3_try.coverage" NAME="main_ikea3_try Coverage Results" MODIFIED="1704416158001" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
     <SUITE FILE_PATH="coverage/main_sunrgbd_try_py$main_nyu2_4096.coverage" NAME="main_nyu2_4096 Coverage Results" MODIFIED="1699186518714" SOURCE_PROVIDER="com.intellij.coverage.DefaultCoverageFileProvider" RUNNER="coverage.py" COVERAGE_BY_TEST_ENABLED="true" COVERAGE_TRACING_ENABLED="false" WORKING_DIRECTORY="$PROJECT_DIR$" />
   </component>
 </project>

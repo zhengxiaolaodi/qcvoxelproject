@@ -247,7 +247,7 @@ class voxel_dgcnn(nn.Module):
         super(voxel_dgcnn, self).__init__()
         self.k = 10  ## 指　voxel里最近邻点的个数
 
-        self.point_num = 200 ## 指每个voxel中有多少点
+        self.point_num = 220 ## 指每个voxel中有多少点
         self.voxel_cls = dim  ## 可以理解成有多少类体素，比如墙面体素，地面体素，圆形体素等等. 即voxel_fea的dim
         #self.voxel_num = 748
         self.emb_dims = 1024
@@ -353,7 +353,7 @@ class DGCNN_voxel_reshape(nn.Module):
         voxel_fea = x
         #print(x.shape, 'voxel dgcnn shape')
 
-        xx = torch.zeros(len_cloud, 356, self.voxel_cls).cuda()                                    # xx means voxel features
+        xx = torch.zeros(len_cloud, 759, self.voxel_cls).cuda()                                    # xx means voxel features
         start_num = 0
         for xx_i in range(len_cloud):
             xx[xx_i, :cloud_len_list[xx_i], :] = x[start_num: start_num + cloud_len_list[xx_i], :]
@@ -363,7 +363,7 @@ class DGCNN_voxel_reshape(nn.Module):
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)   ####  fxm: the extra cls element
         x = torch.cat((cls_tokens, x), dim=1)
         #x += self.pos_embedding[:, :(n + 1)]
-        x = positional_adding(x, voxel_sequence, cloud_len_list, d_model=self.voxel_cls, max_len= 356)             ##########################
+        x = positional_adding(x, voxel_sequence, cloud_len_list, d_model=self.voxel_cls, max_len= 759)             ##########################
         x = self.dropout(x)
 
         x = self.transformer(x, voxel_sequence, cloud_len_list)
